@@ -1,4 +1,4 @@
-from asv_tachyon.cli import cli
+from asv_tachyon.cli import main
 
 if __name__ == "__main__":
-    cli()
+    raise SystemExit(main())
