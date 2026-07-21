@@ -17,8 +17,9 @@ import {
   valueAtRevision,
 } from "./lib/asv";
 import { Chart, Sparkline } from "./components/Chart";
+import { InventoryView } from "./components/InventoryView";
 
-type View = "overview" | "explore" | "compare";
+type View = "overview" | "explore" | "compare" | "inventory";
 
 function typeChip(t: string) {
   const k = t.toLowerCase();
@@ -304,6 +305,9 @@ export default function App() {
           </button>
           <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
             Compare
+          </button>
+          <button type="button" className={view === "inventory" ? "active" : ""} onClick={() => setView("inventory")}>
+            Inventory
           </button>
         </div>
 
@@ -724,10 +728,6 @@ export default function App() {
                   <h2 style={{ margin: "0.25rem 0 0.75rem" }}>
                     Overlay · <span className="mono">{selected}</span>
                   </h2>
-                  {(() => {
-                    const sa = series; // may be for state not stateA — reload via align from sparks not enough
-                    return null;
-                  })()}
                   <PairOverlay
                     name={selected}
                     stateA={stateA}
@@ -741,6 +741,16 @@ export default function App() {
             </>
           )}
         </div>
+      )}
+
+      {view === "inventory" && (
+        <InventoryView
+          index={index}
+          stateA={stateA}
+          stateB={stateB}
+          setStateA={setStateA}
+          setStateB={setStateB}
+        />
       )}
     </div>
   );

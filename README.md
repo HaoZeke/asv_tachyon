@@ -12,7 +12,7 @@ result format, no second benchmark type.
 | **asv** | run benchmarks, write results, `asv publish` data |
 | **asv-tachyon** | modern UI over that published tree |
 | **asv-perch** | PR comment tables (CI) |
-| **asv_spyglass** | compare two result JSON files |
+| **asv_spyglass** | compare two result JSON files + SBOM-style `env-diff` |
 | **asv_bench_tachyon** | `sample_*` metric plugin (separate package) |
 
 ## Install
@@ -48,10 +48,13 @@ asv-tachyon serve .asv/html
 
 ## What you get
 
-- Dark, readable layout (grid + sidebar list)
-- Benchmark search / filter
-- Interactive time-series charts (uPlot)
-- Machine / branch / python filters from `index.json` `params`
+- Overview tiles with sparklines, Explore for full charts + source
+- Pairwise **Compare** (spyglass-style Before/After/Ratio, env or revision)
+- **Inventory** view: SBOM-style env lock diffs (added / removed / version-bumped)
+  - over published param surfaces (`index.json` + machines), or
+  - by dropping two raw ASV result JSON files (same classify as
+    `asv-spyglass env-diff`)
+- Light/dark themes, machine / branch / python filters
 - Same data contract as the stock ASV site — works with existing published trees
 
 ## Development

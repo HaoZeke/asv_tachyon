@@ -565,3 +565,164 @@ code, .mono { font-family: var(--mono); }
   outline: 1px solid color-mix(in oklab, var(--accent) 50%, var(--line));
 }
 .summary-pills { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.85rem; }
+
+/* —— inventory / SBOM-style env diff —— */
+.chip.warn {
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 40%, var(--line));
+  background: color-mix(in oklab, var(--warn) 10%, var(--bg2));
+}
+
+.inv-hero {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 0.9rem;
+  align-items: stretch;
+}
+.inv-hero-left { display: flex; flex-direction: column; gap: 0.65rem; min-width: 0; }
+.inv-pair-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.inv-pair-labels .tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-right: 0.45rem;
+}
+.inv-pair-labels .before-tag { color: var(--accent); }
+.inv-pair-labels .after-tag { color: var(--accent-2); }
+.inv-label {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.inv-stack {
+  display: flex;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  gap: 2px;
+}
+.inv-stack-seg { min-width: 4px; transition: flex 0.2s ease; }
+.inv-stack-seg.inv-added { background: var(--ok); }
+.inv-stack-seg.inv-removed { background: var(--danger); }
+.inv-stack-seg.inv-bumped { background: var(--warn); }
+.inv-stack-seg.inv-unchanged { background: color-mix(in oklab, var(--text-faint) 45%, transparent); }
+
+.inv-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+.inv-kpi {
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+}
+.inv-kpi .k {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.inv-kpi .v {
+  margin-top: 0.25rem;
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.inv-kpi.inv-added .v { color: var(--ok); }
+.inv-kpi.inv-removed .v { color: var(--danger); }
+.inv-kpi.inv-bumped .v { color: var(--warn); }
+
+.inv-drops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: stretch;
+  flex: 1;
+}
+.inv-drop {
+  flex: 1;
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1.5px dashed var(--line-strong);
+  background: var(--bg2);
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.inv-drop:hover, .inv-drop.over {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.inv-drop.has-file {
+  border-style: solid;
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+}
+.inv-drop .tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.inv-drop strong {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.inv-drop .muted { font-size: 0.75rem; }
+
+.inv-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.inv-badge.inv-added {
+  color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 12%, var(--bg2));
+  border-color: color-mix(in oklab, var(--ok) 35%, var(--line));
+}
+.inv-badge.inv-removed {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 12%, var(--bg2));
+  border-color: color-mix(in oklab, var(--danger) 35%, var(--line));
+}
+.inv-badge.inv-bumped {
+  color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 12%, var(--bg2));
+  border-color: color-mix(in oklab, var(--warn) 40%, var(--line));
+}
+.inv-badge.inv-unchanged {
+  color: var(--text-dim);
+  background: var(--bg2);
+}
+
+.inv-arrow { text-align: center; width: 1.5rem; }
+.inv-table tr.row-warn td {
+  background: color-mix(in oklab, var(--warn) 9%, transparent);
+}
+
+@media (max-width: 960px) {
+  .inv-hero { grid-template-columns: 1fr; }
+}
