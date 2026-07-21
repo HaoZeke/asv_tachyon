@@ -8,6 +8,11 @@ The host CLI wraps this with ``python -m profiling.sampling run ...``.
 
 Benchmark names follow ASV conventions, including parameterized forms
 such as ``bench.TimeSuite.time_keys-0``.
+
+The driver calls the raw benchmark function (same target as ``asv profile`` /
+``Benchmark.do_profile``), not ``do_run()``. For ``time_*`` benchmarks,
+``do_run()`` is the adaptive timeit protocol and is the wrong profiling
+target.
 """
 
 from __future__ import annotations
@@ -18,6 +23,18 @@ import math
 import sys
 import time
 from pathlib import Path
+
+
+def _call_benchmark(benchmark) -> None:
+    """Invoke the user function once, matching asv_runner do_profile."""
+    params = benchmark._build_params()
+    if hasattr(benchmark, "redo_setup"):
+        # Keep setup side-effects fresh without re-running full suite setup.
+        try:
+            benchmark.redo_setup()
+        except Exception:
+            pass
+    benchmark.func(*params)
 
 
 def run_loop(
@@ -45,7 +62,7 @@ def run_loop(
     try:
 
         def once() -> None:
-            benchmark.do_run()
+            _call_benchmark(benchmark)
 
         for _ in range(max(0, warmup)):
             once()
