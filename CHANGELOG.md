@@ -1,3 +1,12 @@
+## 0.4.0
+
+- Regressions view with interactive factor threshold.
+- Multi-env Compare columns (compare-many style).
+- Param multi-series overlays with stable colors.
+- Preserve filters when switching benchmarks; URL hash state.
+- Self-hosted DM Sans / JetBrains Mono (no Google Fonts CDN).
+- Publish data-contract docs for adapters.
+
 # Changelog
 
 ## 0.3.1
