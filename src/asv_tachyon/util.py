@@ -23,9 +23,19 @@ class TachyonError(RuntimeError):
 
 
 def which_python(path: str | Path | None = None) -> str:
+    """Return a Python executable path without collapsing venv symlinks.
+
+    ``Path.resolve()`` follows ``.venv/bin/python`` to the base interpreter and
+    drops site-packages from that venv. Keep the user-facing path absolute but
+    do not fully resolve symlinks.
+    """
     if path is None:
         return sys.executable
-    return str(Path(path).resolve())
+    p = Path(path)
+    if not p.is_absolute():
+        p = Path.cwd() / p
+    # absolute() does not follow symlinks (unlike resolve()).
+    return str(p.absolute())
 
 
 def python_version_tuple(python: str) -> tuple[int, int, int]:

@@ -19,3 +19,14 @@ def test_require_sampling_python_rejects_old(monkeypatch):
     )
     with pytest.raises(TachyonError, match="3.15"):
         require_sampling_python("python3.14")
+
+
+def test_which_python_keeps_venv_path(tmp_path):
+    from asv_tachyon.util import which_python
+    fake = tmp_path / ".venv" / "bin" / "python"
+    fake.parent.mkdir(parents=True)
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    got = which_python(str(fake))
+    assert got.endswith(".venv/bin/python")
+    assert "asv_tachyon" not in got or str(tmp_path) in got

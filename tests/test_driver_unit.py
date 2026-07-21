@@ -34,7 +34,7 @@ def test_run_loop_fixed_iterations(mini_bench):
     pytest.importorskip("asv_runner")
     rc = run_loop(
         str(mini_bench),
-        "benchmarks.Suite.time_add",
+        "bench.Suite.time_add",
         loops=3,
         warmup=0,
     )
