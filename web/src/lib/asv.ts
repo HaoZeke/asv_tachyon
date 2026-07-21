@@ -272,3 +272,395 @@ export function alignDualSeries(
     yB: xs.map((x) => mapB.get(x) ?? null),
   };
 }
+
+/* —— multi-series param overlays —— */
+
+/** Stable palette keyed by flat param index (hide/show does not reshuffle). */
+export const SERIES_PALETTE = [
+  "#2dd4bf",
+  "#38bdf8",
+  "#a78bfa",
+  "#fbbf24",
+  "#fb7185",
+  "#4ade80",
+  "#f472b6",
+  "#94a3b8",
+  "#f97316",
+  "#22d3ee",
+  "#c084fc",
+  "#84cc16",
+];
+
+export function seriesColor(index: number): string {
+  return SERIES_PALETTE[index % SERIES_PALETTE.length];
+}
+
+export type ParamCombo = {
+  index: number;
+  label: string;
+  values: string[];
+};
+
+/** Cartesian product of benchmark.params with flat ASV parameter index. */
+export function paramCombos(bench: BenchmarkInfo): ParamCombo[] {
+  const dims = bench.params || [];
+  const names = bench.param_names || [];
+  if (!dims.length) return [{ index: 0, label: "(default)", values: [] }];
+
+  const combos: ParamCombo[] = [];
+  const stride: number[] = [];
+  let n = 1;
+  for (let d = dims.length - 1; d >= 0; d--) {
+    stride[d] = n;
+    n *= dims[d].length || 1;
+  }
+  for (let idx = 0; idx < n; idx++) {
+    const values: string[] = [];
+    const parts: string[] = [];
+    for (let d = 0; d < dims.length; d++) {
+      const di = Math.floor(idx / stride[d]) % (dims[d].length || 1);
+      const v = dims[d][di] ?? String(di);
+      values.push(v);
+      const name = names[d] || `p${d}`;
+      parts.push(`${name}=${v}`);
+    }
+    combos.push({ index: idx, label: parts.join(", "), values });
+  }
+  return combos;
+}
+
+export type NamedSeries = {
+  index: number;
+  label: string;
+  color: string;
+  y: (number | null)[];
+};
+
+/**
+ * Expand graph points that carry multi-value arrays (one entry per param combo)
+ * into separate y-series sharing the same x (revision) axis.
+ */
+export function multiSeriesFromGraph(
+  points: GraphPoint[],
+  combos: ParamCombo[],
+  selectedIndices?: number[] | null,
+): { x: number[]; series: NamedSeries[] } {
+  const want =
+    selectedIndices && selectedIndices.length
+      ? new Set(selectedIndices)
+      : new Set(combos.map((c) => c.index));
+
+  const active = combos.filter((c) => want.has(c.index));
+  const x: number[] = [];
+  const buckets: Map<number, (number | null)[]> = new Map();
+  for (const c of active) buckets.set(c.index, []);
+
+  for (const [rev, val] of points) {
+    x.push(rev);
+    if (val == null) {
+      for (const c of active) buckets.get(c.index)!.push(null);
+      continue;
+    }
+    if (Array.isArray(val)) {
+      for (const c of active) {
+        const v = val[c.index];
+        buckets
+          .get(c.index)!
+          .push(typeof v === "number" && Number.isFinite(v) ? v : null);
+      }
+    } else if (typeof val === "number" && Number.isFinite(val)) {
+      // scalar graph: only index 0 is meaningful
+      for (const c of active) {
+        buckets.get(c.index)!.push(c.index === 0 ? val : null);
+      }
+    } else {
+      for (const c of active) buckets.get(c.index)!.push(null);
+    }
+  }
+
+  const series: NamedSeries[] = active.map((c) => ({
+    index: c.index,
+    label: c.label,
+    color: seriesColor(c.index),
+    y: buckets.get(c.index) || [],
+  }));
+  return { x, series };
+}
+
+/* —— regressions.json (ASV publish) —— */
+
+/**
+ * One entry from regressions.json:
+ * [entry_name, graph_path, graph_params, param_idx, last_v, best_v, jumps]
+ * jumps: [[rev_before, rev_after, value_before, value_after], ...]
+ * rev_before may be null when the jump is a single commit.
+ */
+export type RegressionJump = [
+  number | null,
+  number,
+  number | null,
+  number | null,
+];
+
+export type RegressionEntry = {
+  name: string;
+  graphPath: string | null;
+  graphParams: Record<string, string | null>;
+  paramIdx: number | null;
+  lastValue: number;
+  bestValue: number;
+  jumps: RegressionJump[];
+  /** last / best (higher = worse for time/memory). */
+  factor: number;
+  benchmarkBase: string;
+};
+
+export type RegressionsFile = {
+  regressions: unknown[];
+};
+
+export async function loadRegressions(
+  base = "",
+): Promise<RegressionsFile | null> {
+  try {
+    const res = await fetch(`${base}regressions.json`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Failed to load regressions.json: ${res.status}`);
+    return res.json();
+  } catch (e) {
+    // network / missing file while offline is non-fatal
+    if (e instanceof TypeError) return null;
+    throw e;
+  }
+}
+
+function asRecord(v: unknown): Record<string, string | null> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string | null> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    out[k] = val == null ? null : String(val);
+  }
+  return out;
+}
+
+/** Parse one raw regressions.json row (real ASV shape). */
+export function parseRegressionEntry(raw: unknown): RegressionEntry | null {
+  if (!Array.isArray(raw) || raw.length < 7) return null;
+  const name = String(raw[0] ?? "");
+  if (!name) return null;
+  const graphPath = raw[1] == null ? null : String(raw[1]);
+  const graphParams = asRecord(raw[2]);
+  const paramIdx =
+    raw[3] == null || raw[3] === "" ? null : Number(raw[3]);
+  const lastValue = Number(raw[4]);
+  const bestValue = Number(raw[5]);
+  const jumpsRaw = raw[6];
+  if (!Number.isFinite(lastValue) || !Number.isFinite(bestValue)) return null;
+  const jumps: RegressionJump[] = [];
+  if (Array.isArray(jumpsRaw)) {
+    for (const j of jumpsRaw) {
+      if (!Array.isArray(j) || j.length < 4) continue;
+      jumps.push([
+        j[0] == null ? null : Number(j[0]),
+        Number(j[1]),
+        j[2] == null ? null : Number(j[2]),
+        j[3] == null ? null : Number(j[3]),
+      ]);
+    }
+  }
+  const factor = bestValue !== 0 ? lastValue / bestValue : Infinity;
+  const benchmarkBase = name.includes("(") ? name.slice(0, name.indexOf("(")) : name;
+  return {
+    name,
+    graphPath,
+    graphParams,
+    paramIdx: Number.isFinite(paramIdx as number) ? (paramIdx as number) : null,
+    lastValue,
+    bestValue,
+    jumps,
+    factor,
+    benchmarkBase,
+  };
+}
+
+export function parseRegressions(data: RegressionsFile | null): RegressionEntry[] {
+  if (!data?.regressions?.length) return [];
+  const out: RegressionEntry[] = [];
+  for (const raw of data.regressions) {
+    const e = parseRegressionEntry(raw);
+    if (e) out.push(e);
+  }
+  return out;
+}
+
+/** Jump magnitude after/before; falls back to entry factor. */
+export function jumpFactor(jump: RegressionJump): number | null {
+  const before = jump[2];
+  const after = jump[3];
+  if (before == null || after == null || before === 0) return null;
+  return after / before;
+}
+
+/* —— multi-env compare-many —— */
+
+export type EnvColumn = {
+  id: string;
+  label: string;
+  state: Record<string, string>;
+};
+
+export type MultiEnvRow = {
+  name: string;
+  unit: string;
+  type: string;
+  baseline: number | null;
+  contenders: {
+    value: number | null;
+    ratio: number | null;
+    mark: PairRow["mark"];
+    color: PairRow["color"];
+  }[];
+};
+
+export function envLabel(state: Record<string, string>): string {
+  return Object.entries(state)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(" ");
+}
+
+export function graphParamStates(index: AsvIndex): EnvColumn[] {
+  return (index.graph_param_list || []).map((gp, i) => {
+    const state: Record<string, string> = {};
+    for (const [k, v] of Object.entries(gp)) {
+      if (v != null) state[k] = String(v);
+    }
+    return { id: String(i), label: envLabel(state) || `env ${i}`, state };
+  });
+}
+
+export function buildMultiEnvRows(
+  names: string[],
+  meta: Record<string, { unit: string; type: string }>,
+  baselineVals: Record<string, number | null>,
+  contenderVals: Record<string, number | null>[],
+  opts: {
+    factor?: number;
+    onlyChanged?: boolean;
+    sort?: "default" | "ratio" | "name";
+  } = {},
+): MultiEnvRow[] {
+  const factor = opts.factor ?? 1.1;
+  const rows: MultiEnvRow[] = [];
+  for (const name of names) {
+    const baseline = baselineVals[name] ?? null;
+    const contenders = contenderVals.map((cv) => {
+      const value = cv[name] ?? null;
+      const cls = classifyPair(baseline, value, factor);
+      return { value, ...cls };
+    });
+    if (opts.onlyChanged) {
+      const anyChanged = contenders.some(
+        (c) => c.mark === "+" || c.mark === "-" || c.mark === "!",
+      );
+      if (!anyChanged) continue;
+    }
+    rows.push({
+      name,
+      unit: meta[name]?.unit ?? "seconds",
+      type: meta[name]?.type ?? "time",
+      baseline,
+      contenders,
+    });
+  }
+  if (opts.sort === "name") {
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (opts.sort === "ratio") {
+    rows.sort((a, b) => {
+      const ra = Math.max(...a.contenders.map((c) => c.ratio ?? 0), 0);
+      const rb = Math.max(...b.contenders.map((c) => c.ratio ?? 0), 0);
+      return rb - ra;
+    });
+  } else {
+    const order = { red: 0, green: 1, default: 2, grey: 3 };
+    rows.sort((a, b) => {
+      const ca = Math.min(...a.contenders.map((c) => order[c.color]));
+      const cb = Math.min(...b.contenders.map((c) => order[c.color]));
+      return ca - cb || a.name.localeCompare(b.name);
+    });
+  }
+  return rows;
+}
+
+/* —— URL hash state (shareable explore / filters) —— */
+
+export type AppHashState = {
+  view?: string;
+  bench?: string;
+  /** env selector filters (machine, branch, python, …) */
+  filters?: Record<string, string>;
+  /** selected param flat indices (comma-separated in hash) */
+  params?: number[];
+  factor?: number;
+  /** graph_param_list indices for multi-env compare (first = baseline) */
+  envs?: number[];
+  pairMode?: "env" | "revision";
+};
+
+export function parseHash(hash = window.location.hash): AppHashState {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw) return {};
+  const params = new URLSearchParams(raw.includes("=") ? raw : "");
+  // also support key=value&… without URLSearchParams quirks for empty
+  const out: AppHashState = {};
+  const view = params.get("view");
+  if (view) out.view = view;
+  const bench = params.get("bench");
+  if (bench) out.bench = bench;
+  const factor = params.get("factor");
+  if (factor && Number.isFinite(Number(factor))) out.factor = Number(factor);
+  const pairMode = params.get("pairMode");
+  if (pairMode === "env" || pairMode === "revision") out.pairMode = pairMode;
+  const p = params.get("params");
+  if (p) {
+    out.params = p
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n));
+  }
+  const envs = params.get("envs");
+  if (envs) {
+    out.envs = envs
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n));
+  }
+  const filters: Record<string, string> = {};
+  for (const key of ["machine", "branch", "python"]) {
+    const v = params.get(key);
+    if (v) filters[key] = v;
+  }
+  // any other f- keys
+  params.forEach((v, k) => {
+    if (k.startsWith("f-") && v) filters[k.slice(2)] = v;
+  });
+  if (Object.keys(filters).length) out.filters = filters;
+  return out;
+}
+
+export function formatHash(state: AppHashState): string {
+  const params = new URLSearchParams();
+  if (state.view) params.set("view", state.view);
+  if (state.bench) params.set("bench", state.bench);
+  if (state.factor != null) params.set("factor", String(state.factor));
+  if (state.pairMode) params.set("pairMode", state.pairMode);
+  if (state.params?.length) params.set("params", state.params.join(","));
+  if (state.envs?.length) params.set("envs", state.envs.join(","));
+  if (state.filters) {
+    for (const [k, v] of Object.entries(state.filters)) {
+      if (k === "machine" || k === "branch" || k === "python") params.set(k, v);
+      else params.set(`f-${k}`, v);
+    }
+  }
+  const s = params.toString();
+  return s ? `#${s}` : "";
+}
