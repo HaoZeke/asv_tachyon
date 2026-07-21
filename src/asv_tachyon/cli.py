@@ -1,362 +1,158 @@
-"""Command-line interface for asv-tachyon."""
+"""CLI: serve and install the modern ASV results UI over a published html_dir."""
 
 from __future__ import annotations
 
+import argparse
+import functools
+import http.server
 import os
+import shutil
+import sys
+import webbrowser
 from pathlib import Path
 
-import click
 
-from asv_tachyon import __version__
-from asv_tachyon.sample import (
-    FORMAT_FLAGS,
-    SampleRequest,
-    replay_binary,
-    run_sample,
-)
-from asv_tachyon.util import (
-    TachyonError,
-    open_path,
-    require_sampling_python,
-    which_python,
-)
-
-FORMATS = tuple(FORMAT_FLAGS.keys())
-
-
-def _die(msg: str, code: int = 1) -> None:
-    click.echo(f"error: {msg}", err=True)
-    raise SystemExit(code)
-
-
-def _load_asv_conf(config: str | None):
-    from asv import config as asv_config
-
-    conf_path = config
-    if conf_path is None:
-        for candidate in ("asv.conf.json", "asv.conf.yaml"):
-            if Path(candidate).exists():
-                conf_path = candidate
-                break
-    if conf_path is None:
-        return None
-    conf_path = os.path.abspath(conf_path)
-    os.chdir(os.path.dirname(conf_path))
-    return asv_config.Config.load(conf_path)
-
-
-def _resolve_python(python: str | None, env_spec: str | None, conf) -> str:
-    if python:
-        return which_python(python)
-
-    if env_spec and env_spec.startswith("existing:"):
-        return which_python(env_spec.split(":", 1)[1])
-
-    if conf is not None:
-        try:
-            from asv.environment import get_environments
-
-            envs = list(get_environments(conf, env_spec))
-            # Prefer an env whose python is 3.15+.
-            for env in envs:
-                py = getattr(env, "python", None) or getattr(env, "_python", None)
-                # ExistingEnvironment exposes executable via get_executable-ish APIs
-                exe = None
-                if hasattr(env, "_executable"):
-                    exe = env._executable
-                if hasattr(env, "get_executable"):
-                    try:
-                        exe = env.get_executable()  # type: ignore[misc]
-                    except Exception:
-                        pass
-                if exe is None and hasattr(env, "_path"):
-                    # virtualenv layout
-                    cand = Path(env._path) / "bin" / "python"
-                    if cand.exists():
-                        exe = str(cand)
-                if exe:
-                    try:
-                        require_sampling_python(str(exe))
-                        return str(exe)
-                    except TachyonError:
-                        continue
-        except Exception as exc:
-            click.echo(f"warning: could not resolve asv environments: {exc}", err=True)
-
-    # Fall back to current interpreter.
-    return which_python(None)
-
-
-def _benchmark_dir(conf, explicit: str | None) -> Path:
-    if explicit:
-        return Path(explicit).resolve()
-    if conf is not None and getattr(conf, "benchmark_dir", None):
-        return Path(conf.benchmark_dir).resolve()
-    for candidate in ("benchmarks", "benchmark"):
-        if Path(candidate).is_dir():
-            return Path(candidate).resolve()
-    _die(
-        "Could not find benchmarks directory. Pass --benchmark-dir or run "
-        "inside an ASV project with asv.conf.json."
+def _static_dir() -> Path:
+    here = Path(__file__).resolve().parent
+    # Packaged assets
+    packaged = here / "static"
+    if packaged.is_dir() and (packaged / "index.html").exists():
+        return packaged
+    # Dev tree: web/dist after vite build
+    dev = here.parent.parent / "web" / "dist"
+    if dev.is_dir() and (dev / "index.html").exists():
+        return dev
+    raise SystemExit(
+        "asv-tachyon UI assets not found. From a checkout run: "
+        "cd web && npm install && npm run build"
     )
 
 
-@click.group()
-@click.version_option(__version__, prog_name="asv-tachyon")
-def cli() -> None:
-    """Sample ASV benchmarks with Python 3.15 Tachyon (profiling.sampling)."""
+def cmd_serve(html_dir: Path, host: str, port: int, open_browser: bool) -> int:
+    html_dir = html_dir.resolve()
+    if not (html_dir / "index.json").exists():
+        raise SystemExit(f"No index.json in {html_dir} (run `asv publish` first)")
 
+    ui = _static_dir()
 
-@cli.command("sample")
-@click.argument("benchmark")
-@click.option("--config", default=None, help="Path to asv.conf.json")
-@click.option(
-    "--benchmark-dir",
-    "benchmark_dir",
-    default=None,
-    help="Benchmarks package directory (default: from conf or ./benchmarks)",
-)
-@click.option(
-    "--python",
-    "python_exe",
-    default=None,
-    help="Target Python 3.15+ executable used for sampling",
-)
-@click.option(
-    "-E",
-    "--env-spec",
-    default=None,
-    help="ASV environment selector (e.g. existing:/path/to/python)",
-)
-@click.option(
-    "--format",
-    "fmt",
-    type=click.Choice(FORMATS),
-    default="flamegraph",
-    show_default=True,
-    help="Tachyon output format",
-)
-@click.option("-o", "--output", type=click.Path(), default=None, help="Output path")
-@click.option(
-    "--mode",
-    type=click.Choice(["wall", "cpu", "gil", "exception"]),
-    default="wall",
-    show_default=True,
-)
-@click.option("-r", "--rate", default="1khz", show_default=True, help="Sampling rate")
-@click.option(
-    "--duration",
-    type=float,
-    default=None,
-    help="Seconds to run the benchmark loop (driver-side)",
-)
-@click.option("--loops", type=int, default=None, help="Fixed driver iteration count")
-@click.option("--warmup", type=int, default=1, show_default=True)
-@click.option("-a", "--all-threads", is_flag=True, help="Sample all threads")
-@click.option("--native", is_flag=True, help="Insert <native> frames")
-@click.option("--opcodes", is_flag=True, help="Record bytecode opcodes")
-@click.option("--async-aware", is_flag=True, help="Asyncio task stacks")
-@click.option(
-    "--async-mode",
-    type=click.Choice(["running", "all"]),
-    default=None,
-)
-@click.option("--no-gc", is_flag=True, help="Omit <GC> frames")
-@click.option("--subprocesses", is_flag=True, help="Follow subprocesses")
-@click.option("--blocking", is_flag=True, help="Freeze threads while sampling")
-@click.option("--live", is_flag=True, help="Live top-like TUI")
-@click.option("--browser", is_flag=True, help="Open HTML output in a browser")
-@click.option(
-    "--baseline",
-    type=click.Path(exists=True),
-    default=None,
-    help="Baseline .bin for --format diff-flamegraph",
-)
-@click.option(
-    "--compression",
-    type=click.Choice(["auto", "zstd", "none"]),
-    default=None,
-)
-@click.option("--sort", default=None, help="pstats sort key")
-@click.option("-l", "--limit", type=int, default=None, help="pstats row limit")
-@click.option("--no-summary", is_flag=True)
-@click.option("--dry-run", is_flag=True, help="Print command and exit")
-def sample_cmd(
-    benchmark,
-    config,
-    benchmark_dir,
-    python_exe,
-    env_spec,
-    fmt,
-    output,
-    mode,
-    rate,
-    duration,
-    loops,
-    warmup,
-    all_threads,
-    native,
-    opcodes,
-    async_aware,
-    async_mode,
-    no_gc,
-    subprocesses,
-    blocking,
-    live,
-    browser,
-    baseline,
-    compression,
-    sort,
-    limit,
-    no_summary,
-    dry_run,
-):
-    """Sample BENCHMARK with Tachyon and write a profile artifact."""
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(html_dir), **kwargs)
+
+        def translate_path(self, path: str) -> str:
+            # Prefer UI assets for app shell; data files stay in html_dir
+            clean = path.split("?", 1)[0].split("#", 1)[0]
+            if clean in ("/", "/index.html") or clean.startswith("/assets/"):
+                rel = "index.html" if clean in ("/", "/index.html") else clean.lstrip("/")
+                candidate = ui / rel
+                if candidate.exists():
+                    return str(candidate)
+            return super().translate_path(path)
+
+        def log_message(self, fmt: str, *args) -> None:
+            sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+
+    # SPA fallback: unknown paths that aren't data still get index.html from UI
+    class SPAHandler(Handler):
+        def do_GET(self):  # noqa: N802
+            path = self.path.split("?", 1)[0]
+            # data / graphs always from html_dir
+            if (
+                path.startswith("/graphs/")
+                or path.endswith(".json")
+                or path.endswith(".xml")
+                or path.startswith("/assets/")
+                or path in ("/", "/index.html")
+            ):
+                return super().do_GET()
+            # hash routes: serve SPA
+            self.path = "/index.html"
+            return super().do_GET()
+
+    httpd = http.server.ThreadingHTTPServer((host, port), SPAHandler)
+    url = f"http://{host}:{port}/"
+    print(f"asv-tachyon serving {html_dir}")
+    print(f"  UI assets: {ui}")
+    print(f"  {url}")
+    if open_browser:
+        webbrowser.open(url)
     try:
-        conf = _load_asv_conf(config)
-        py = _resolve_python(python_exe, env_spec, conf)
-        bdir = _benchmark_dir(conf, benchmark_dir)
-        results_dir = Path(conf.results_dir) if conf and conf.results_dir else None
-        req = SampleRequest(
-            benchmark=benchmark,
-            benchmark_dir=bdir,
-            python=py,
-            output=Path(output) if output else None,
-            fmt=fmt,
-            mode=mode,
-            rate=rate,
-            duration=duration,
-            loops=loops,
-            warmup=warmup,
-            all_threads=all_threads,
-            native=native,
-            opcodes=opcodes,
-            async_aware=async_aware,
-            async_mode=async_mode,
-            no_gc=no_gc,
-            subprocesses=subprocesses,
-            blocking=blocking,
-            live=live,
-            browser=browser,
-            sort=sort,
-            limit=limit,
-            no_summary=no_summary,
-            baseline=Path(baseline) if baseline else None,
-            compression=compression,
-            conf_results_dir=results_dir,
-            dry_run=dry_run,
-        )
-        result = run_sample(req)
-    except TachyonError as exc:
-        _die(str(exc))
-    except Exception as exc:
-        _die(f"{type(exc).__name__}: {exc}")
-
-    if dry_run:
-        click.echo(" ".join(result.command))
-        return
-
-    if result.returncode != 0:
-        raise SystemExit(result.returncode)
-    if result.output is not None:
-        click.echo(f"Wrote {result.output}")
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped")
+    return 0
 
 
-@cli.command("open")
-@click.argument("path", type=click.Path(exists=True))
-def open_cmd(path):
-    """Open a flame graph, heatmap directory, or other Tachyon artifact."""
-    try:
-        open_path(Path(path))
-    except TachyonError as exc:
-        _die(str(exc))
+def cmd_install(html_dir: Path, backup: bool) -> int:
+    """Copy modern UI into an asv publish output, keeping graphs/ + *.json."""
+    html_dir = html_dir.resolve()
+    if not (html_dir / "index.json").exists():
+        raise SystemExit(f"No index.json in {html_dir} (run `asv publish` first)")
+    ui = _static_dir()
+
+    # Backup legacy index if present
+    legacy = html_dir / "index.html"
+    if backup and legacy.exists() and not (html_dir / "index.legacy.html").exists():
+        shutil.copy2(legacy, html_dir / "index.legacy.html")
+
+    # Copy SPA shell
+    shutil.copy2(ui / "index.html", html_dir / "index.html")
+    assets_src = ui / "assets"
+    assets_dst = html_dir / "assets"
+    if assets_dst.exists():
+        shutil.rmtree(assets_dst)
+    if assets_src.exists():
+        shutil.copytree(assets_src, assets_dst)
+
+    # Optional favicon from UI public/
+    for name in ("favicon.svg", "favicon.ico"):
+        src = ui / name
+        if src.exists():
+            shutil.copy2(src, html_dir / name)
+
+    print(f"Installed asv-tachyon UI into {html_dir}")
+    print("  Kept index.json, graphs/, regressions.json from asv publish")
+    print("  Open with any static server, or: asv-tachyon serve", html_dir)
+    return 0
 
 
-@cli.command("replay")
-@click.argument("binary", type=click.Path(exists=True))
-@click.option(
-    "--python",
-    "python_exe",
-    default=None,
-    help="Python 3.15+ used for replay (default: current)",
-)
-@click.option(
-    "--format",
-    "fmt",
-    type=click.Choice([f for f in FORMATS if f != "diff-flamegraph"]),
-    default="flamegraph",
-    show_default=True,
-)
-@click.option("-o", "--output", type=click.Path(), default=None)
-@click.option("--browser", is_flag=True)
-@click.option("--dry-run", is_flag=True)
-def replay_cmd(binary, python_exe, fmt, output, browser, dry_run):
-    """Replay a Tachyon binary capture into another format."""
-    try:
-        py = which_python(python_exe)
-        result = replay_binary(
-            py,
-            Path(binary),
-            fmt=fmt,
-            output=Path(output) if output else None,
-            browser=browser,
-            dry_run=dry_run,
-        )
-    except TachyonError as exc:
-        _die(str(exc))
-
-    if dry_run:
-        click.echo(" ".join(result.command))
-        return
-    if result.returncode != 0:
-        raise SystemExit(result.returncode)
-    if result.output is not None:
-        click.echo(f"Wrote {result.output}")
-
-
-@cli.command("doctor")
-@click.option("--python", "python_exe", default=None)
-@click.option("--config", default=None)
-@click.option("-E", "--env-spec", default=None)
-def doctor_cmd(python_exe, config, env_spec):
-    """Check that Tachyon sampling is available for the target Python."""
-    conf = None
-    try:
-        conf = _load_asv_conf(config)
-    except Exception as exc:
-        click.echo(f"conf: not loaded ({exc})")
-    else:
-        click.echo(f"conf: {getattr(conf, 'project', None) or 'loaded'}")
-
-    try:
-        py = _resolve_python(python_exe, env_spec, conf)
-        ver = require_sampling_python(py)
-        click.echo(f"python: {py}")
-        click.echo(f"version: {ver[0]}.{ver[1]}.{ver[2]}")
-        click.echo("profiling.sampling: ok")
-    except TachyonError as exc:
-        click.echo(f"profiling.sampling: FAIL\n{exc}")
-        raise SystemExit(1)
-
-    probe = __import__("subprocess").run(
-        [py, "-c", "import asv_tachyon, asv_runner; print(asv_tachyon.__version__)"],
-        capture_output=True,
-        text=True,
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="asv-tachyon",
+        description="Modern web UI for airspeed velocity published results",
     )
-    if probe.returncode == 0:
-        click.echo(f"asv_tachyon in target: {probe.stdout.strip()}")
-    else:
-        click.echo(
-            "asv_tachyon in target: MISSING (pip install asv-tachyon into the env)"
-        )
+    sub = parser.add_subparsers(dest="cmd", required=True)
 
+    p_serve = sub.add_parser("serve", help="Serve modern UI over an asv html_dir")
+    p_serve.add_argument(
+        "html_dir",
+        nargs="?",
+        default=".",
+        type=Path,
+        help="Directory from `asv publish` (default: .)",
+    )
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", "-p", type=int, default=8765)
+    p_serve.add_argument("--open", action="store_true", help="Open browser")
 
-@cli.command("formats")
-def formats_cmd():
-    """List supported Tachyon output formats."""
-    for name in FORMATS:
-        click.echo(f"{name:16} flag={FORMAT_FLAGS[name]}")
+    p_install = sub.add_parser(
+        "install",
+        help="Write modern UI files into html_dir (drop-in replace of legacy index.html)",
+    )
+    p_install.add_argument("html_dir", type=Path, help="asv publish output directory")
+    p_install.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Do not keep index.legacy.html",
+    )
+
+    args = parser.parse_args(argv)
+    if args.cmd == "serve":
+        return cmd_serve(args.html_dir, args.host, args.port, args.open)
+    if args.cmd == "install":
+        return cmd_install(args.html_dir, backup=not args.no_backup)
+    return 1
 
 
 if __name__ == "__main__":
-    cli()
+    raise SystemExit(main())

@@ -1,74 +1,32 @@
 [project]
 name = "asv-tachyon"
 dynamic = ["version"]
-description = "Near-zero-overhead Tachyon sampling profiles for ASV benchmarks"
-authors = [
-    {name = "Rohit Goswami", email = "rgoswami@ieee.org"},
-]
-maintainers = [
-    {name = "Rohit Goswami", email = "rgoswami@ieee.org"},
-]
-dependencies = [
-    "asv>=0.6.4",
-    "asv-runner>=0.2.1",
-    "click>=8.1",
-]
+description = "Modern web UI for airspeed velocity (ASV) benchmark results"
+authors = [{name = "Rohit Goswami", email = "rgoswami@ieee.org"}]
+maintainers = [{name = "Rohit Goswami", email = "rgoswami@ieee.org"}]
+dependencies = []
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
-keywords = [
-    "asv",
-    "benchmark",
-    "profiling",
-    "sampling",
-    "tachyon",
-    "flamegraph",
-    "python-3.15",
-]
+keywords = ["asv", "benchmark", "dashboard", "visualization", "frontend"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
+    "Environment :: Web Environment",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.15",
-    "Topic :: Software Development :: Testing",
     "Topic :: System :: Benchmark",
-    "Topic :: System :: Monitoring",
 ]
 
 [project.urls]
-Documentation = "https://haozeke.github.io/asv_tachyon/"
-Issues = "https://github.com/HaoZeke/asv_tachyon/issues"
 Source = "https://github.com/HaoZeke/asv_tachyon"
-Changelog = "https://github.com/HaoZeke/asv_tachyon/blob/main/CHANGELOG.md"
-
-[project.optional-dependencies]
-test = [
-    "pytest>=8.0",
-]
-docs = [
-    "sphinx>=7.0",
-    "shibuya>=2024.1",
-    "sphinx-sitemap>=2.5",
-]
-rel = [
-    "tbump>=6.11",
-    "towncrier>=23.6",
-    "build>=1.0",
-    "twine>=5.0",
-]
+Issues = "https://github.com/HaoZeke/asv_tachyon/issues"
+Documentation = "https://github.com/HaoZeke/asv_tachyon#readme"
 
 [project.scripts]
-asv-tachyon = "asv_tachyon.cli:cli"
+asv-tachyon = "asv_tachyon.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -80,76 +38,23 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/asv_tachyon/_version.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/asv_tachyon"]
 
-[tool.hatch.build.targets.wheel.sources]
-"src/asv_tachyon" = "asv_tachyon"
+# Ship prebuilt web assets inside the wheel
+[tool.hatch.build.targets.wheel.force-include]
+"web/dist" = "asv_tachyon/static"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/src",
-    "/tests",
-    "/docs",
-    "/branding",
-    "/scripts",
-    "/changelog.d",
-    "/README.md",
-    "/LICENSE",
-    "/CHANGELOG.md",
-    "/CODE_OF_CONDUCT.md",
-    "/CODEOWNERS",
-    "/tbump.toml",
-    "/towncrier.toml",
-    "/pixi.toml",
-]
-
-[tool.ruff]
-line-length = 88
-extend-include = ["tests/**/*.py"]
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-extend-ignore = [
-    "E741",
-]
-select = [
-    "E",
-    "F",
-    "UP",
-    "I",
+  "/src",
+  "/web",
+  "/fixtures",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-
-[tool.towncrier]
-package = "asv_tachyon"
-package_dir = "src"
-directory = "changelog.d"
-filename = "CHANGELOG.md"
-start_string = "<!-- towncrier release notes start -->\n"
-underlines = ["", "", ""]
-title_format = "## [{version}](https://github.com/HaoZeke/asv_tachyon/tree/v{version}) - {project_date}"
-issue_format = "[#{issue}](https://github.com/HaoZeke/asv_tachyon/issues/{issue})"
-all_bullets = false
-wrap = true
-
-[[tool.towncrier.type]]
-directory = "feat"
-name = "New Features"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "bugfix"
-name = "Bug Fixes"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "api"
-name = "API Changes"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "misc"
-name = "Other Changes and Additions"
-showcontent = true

@@ -1,28 +1,67 @@
-# asv-tachyon (diagnostic CLI only)
+# asv-tachyon
 
-> **Wrong shape for an ASV metric plugin.**  
-> For `sample_*` benchmarks that **store numbers in ASV results** (like `asv_bench_memray`), use:
->
-> **[asv_bench_tachyon](https://pypi.org/project/asv-bench-tachyon/)**  
-> https://github.com/HaoZeke/asv_bench_tachyon
+**Modern web UI for [airspeed velocity](https://asv.readthedocs.io/) results.**
 
-## What this package was
+ASV’s built-in site is still jQuery + Flot + Bootstrap 3. **asv-tachyon** is a
+drop-in shell over the same static data that `asv publish` already writes
+(`index.json`, `graphs/**`, `regressions.json`). No server-side app, no new
+result format, no second benchmark type.
 
-A CLI wrapper around Python 3.15 `profiling.sampling` plus an `asv profile --gui=tachyon` hook. That is **profiler diagnostics**, not an `asv_runner` benchmark type. `asv_runner` only auto-loads distributions whose name starts with `asv_bench`.
+| Tool | Job |
+|------|-----|
+| **asv** | run benchmarks, write results, `asv publish` data |
+| **asv-tachyon** | modern UI over that published tree |
+| **asv-perch** | PR comment tables (CI) |
+| **asv_spyglass** | compare two result JSON files |
+| **asv_bench_tachyon** | `sample_*` metric plugin (separate package) |
 
-| Package | Role |
-|---------|------|
-| **asv_bench_tachyon** | `def sample_*(...):` → metric in `asv run` / graphs / compare |
-| **asv-tachyon** (this) | optional CLI / GUI helper; not a memray-style plugin |
+## Install
 
 ```bash
-pip install asv_bench_tachyon   # the real plugin
+pip install asv-tachyon
+# or from git after building the UI once
 ```
 
-```python
-def sample_hot():
-    ...
-# asv run --bench sample_hot
+The wheel embeds a prebuilt SPA (`web/dist`). From a checkout:
+
+```bash
+cd web && npm install && npm run build && cd ..
+pip install -e .
+```
+
+## Usage
+
+```bash
+asv run
+asv publish
+asv-tachyon serve .asv/html --open
+```
+
+Or replace the legacy `index.html` in place (keeps all graph JSON):
+
+```bash
+asv publish
+asv-tachyon install .asv/html
+# then any static host, or:
+asv-tachyon serve .asv/html
+```
+
+## What you get
+
+- Dark, readable layout (grid + sidebar list)
+- Benchmark search / filter
+- Interactive time-series charts (uPlot)
+- Machine / branch / python filters from `index.json` `params`
+- Same data contract as the stock ASV site — works with existing published trees
+
+## Development
+
+```bash
+# terminal 1: static data
+asv-tachyon serve fixtures/sample_site -p 8765
+
+# terminal 2: vite (optional hot reload; proxy configured to :8765)
+cd web && npm install && npm run dev
 ```
 
 ## License
