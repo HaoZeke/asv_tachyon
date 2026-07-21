@@ -27,6 +27,19 @@ export type AsvIndex = {
 
 export type GraphPoint = [number, number | number[] | null];
 
+/** Spyglass / asv compare-style row */
+export type PairRow = {
+  name: string;
+  unit: string;
+  type: string;
+  before: number | null;
+  after: number | null;
+  ratio: number | null;
+  /** "-" improved, "+" worsened, "~" insignificant vs factor, " " same, "x" n/a */
+  mark: "-" | "+" | "~" | " " | "x" | "!";
+  color: "green" | "red" | "default" | "grey";
+};
+
 export function sanitizeFilename(name: string): string {
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
 }
@@ -127,13 +140,20 @@ export function scalarSeries(points: GraphPoint[]): { x: number[]; y: number[] }
 }
 
 export function seriesStats(y: number[]) {
-  if (!y.length) return { latest: null as number | null, min: null as number | null, max: null as number | null, change: null as number | null };
+  if (!y.length)
+    return {
+      latest: null as number | null,
+      min: null as number | null,
+      max: null as number | null,
+      change: null as number | null,
+      first: null as number | null,
+    };
   const latest = y[y.length - 1];
+  const first = y[0];
   const min = Math.min(...y);
   const max = Math.max(...y);
-  const first = y[0];
   const change = first !== 0 ? (latest - first) / Math.abs(first) : null;
-  return { latest, min, max, change };
+  return { latest, min, max, change, first };
 }
 
 export function downsample(x: number[], y: number[], maxPoints = 40): { x: number[]; y: number[] } {
@@ -147,4 +167,108 @@ export function downsample(x: number[], y: number[], maxPoints = 40): { x: numbe
     oy.push(y[idx]);
   }
   return { x: ox, y: oy };
+}
+
+export function valueAtRevision(
+  series: { x: number[]; y: number[] },
+  revision: number,
+): number | null {
+  const i = series.x.indexOf(revision);
+  if (i >= 0) return series.y[i];
+  // nearest previous
+  let best: number | null = null;
+  for (let k = 0; k < series.x.length; k++) {
+    if (series.x[k] <= revision) best = series.y[k];
+  }
+  return best;
+}
+
+/**
+ * Pairwise classification mirroring asv / asv-spyglass:
+ * after/before ratio; factor threshold (default 1.1).
+ * Without sample CI we approximate stats with magnitude-only factor.
+ */
+export function classifyPair(
+  before: number | null,
+  after: number | null,
+  factor = 1.1,
+): Pick<PairRow, "ratio" | "mark" | "color"> {
+  // Mirrors asv.commands.compare / asv-spyglass (lower is better).
+  if (before == null && after == null)
+    return { ratio: null, mark: " ", color: "default" };
+  if (before != null && after == null)
+    return { ratio: null, mark: "!", color: "red" }; // introduced failure
+  if (before == null && after != null)
+    return { ratio: null, mark: " ", color: "green" }; // fixed failure
+  if (before == null || after == null)
+    return { ratio: null, mark: "x", color: "grey" };
+  if (before === 0) {
+    return { ratio: after === 0 ? 1 : null, mark: "x", color: "grey" };
+  }
+
+  const ratio = after / before;
+  // after clearly better (smaller): before/after > factor  ⇒  after < before/factor
+  if (before / after > factor)
+    return { ratio, mark: "-", color: "green" };
+  // after clearly worse (larger)
+  if (after / before > factor)
+    return { ratio, mark: "+", color: "red" };
+  // magnitude would flip without the factor slack → mark insignificant
+  if (ratio !== 1 && (after < before || after > before))
+    return { ratio, mark: "~", color: "default" };
+  return { ratio, mark: " ", color: "default" };
+}
+
+export function buildPairRows(
+  names: string[],
+  meta: Record<string, { unit: string; type: string }>,
+  beforeVals: Record<string, number | null>,
+  afterVals: Record<string, number | null>,
+  opts: {
+    factor?: number;
+    onlyChanged?: boolean;
+    sort?: "default" | "ratio" | "name";
+  } = {},
+): PairRow[] {
+  const factor = opts.factor ?? 1.1;
+  const rows: PairRow[] = [];
+  for (const name of names) {
+    const before = beforeVals[name] ?? null;
+    const after = afterVals[name] ?? null;
+    const cls = classifyPair(before, after, factor);
+    if (opts.onlyChanged && (cls.mark === " " || cls.mark === "x" || cls.mark === "~"))
+      continue;
+    rows.push({
+      name,
+      unit: meta[name]?.unit ?? "seconds",
+      type: meta[name]?.type ?? "time",
+      before,
+      after,
+      ...cls,
+    });
+  }
+  if (opts.sort === "ratio") {
+    rows.sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0));
+  } else if (opts.sort === "name") {
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+  } else {
+    // default: reds first, then greens, then rest
+    const order = { red: 0, green: 1, default: 2, grey: 3 };
+    rows.sort((a, b) => order[a.color] - order[b.color] || a.name.localeCompare(b.name));
+  }
+  return rows;
+}
+
+export function alignDualSeries(
+  a: { x: number[]; y: number[] },
+  b: { x: number[]; y: number[] },
+): { x: number[]; yA: (number | null)[]; yB: (number | null)[] } {
+  const xs = Array.from(new Set([...a.x, ...b.x])).sort((p, q) => p - q);
+  const mapA = new Map(a.x.map((v, i) => [v, a.y[i]]));
+  const mapB = new Map(b.x.map((v, i) => [v, b.y[i]]));
+  return {
+    x: xs,
+    yA: xs.map((x) => mapA.get(x) ?? null),
+    yB: xs.map((x) => mapB.get(x) ?? null),
+  };
 }

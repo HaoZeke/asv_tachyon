@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AsvIndex,
   BenchmarkInfo,
+  PairRow,
+  alignDualSeries,
+  buildPairRows,
   commitHash,
   defaultState,
   downsample,
@@ -11,6 +14,7 @@ import {
   prettyUnit,
   scalarSeries,
   seriesStats,
+  valueAtRevision,
 } from "./lib/asv";
 import { Chart, Sparkline } from "./components/Chart";
 
@@ -40,6 +44,57 @@ function SearchIcon() {
   );
 }
 
+
+function PairOverlay({
+  name,
+  stateA,
+  stateB,
+  unit,
+  labelA,
+  labelB,
+}: {
+  name: string;
+  stateA: Record<string, string>;
+  stateB: Record<string, string>;
+  unit: string;
+  labelA: string;
+  labelB: string;
+}) {
+  const [data, setData] = useState<{ x: number[]; yA: number[]; yB: (number | null)[] } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const a = scalarSeries(await loadGraph(graphToPath(name, stateA)));
+        const b = scalarSeries(await loadGraph(graphToPath(name, stateB)));
+        const aligned = alignDualSeries(a, b);
+        if (!cancelled)
+          setData({
+            x: aligned.x,
+            yA: aligned.yA.map((v) => v ?? NaN),
+            yB: aligned.yB,
+          });
+      } catch {
+        if (!cancelled) setData(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [name, stateA, stateB]);
+  if (!data) return <p className="muted">Loading overlay…</p>;
+  return (
+    <Chart
+      x={data.x}
+      y={data.yA}
+      y2={data.yB}
+      unit={unit}
+      labelA={labelA}
+      labelB={labelB}
+    />
+  );
+}
+
 export default function App() {
   const [index, setIndex] = useState<AsvIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +105,19 @@ export default function App() {
   const [series, setSeries] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
   const [loadingGraph, setLoadingGraph] = useState(false);
+  // Pairwise (spyglass-style)
+  const [pairMode, setPairMode] = useState<"env" | "revision">("env");
+  const [stateA, setStateA] = useState<Record<string, string>>({});
+  const [stateB, setStateB] = useState<Record<string, string>>({});
+  const [revA, setRevA] = useState<number | null>(null);
+  const [revB, setRevB] = useState<number | null>(null);
+  const [factor, setFactor] = useState(1.1);
+  const [onlyChanged, setOnlyChanged] = useState(true);
+  const [sortPair, setSortPair] = useState<"default" | "ratio" | "name">("ratio");
+  const [pairValsA, setPairValsA] = useState<Record<string, number | null>>({});
+  const [pairValsB, setPairValsB] = useState<Record<string, number | null>>({});
+  const [seriesB, setSeriesB] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [pairLoading, setPairLoading] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("asv-tachyon-theme");
     if (saved === "light" || saved === "dark") return saved;
@@ -65,7 +133,24 @@ export default function App() {
     loadIndex()
       .then((idx) => {
         setIndex(idx);
-        setState(defaultState(idx));
+        const d = defaultState(idx);
+        setState(d);
+        setStateA(d);
+        // Prefer a second graph_param_list entry when available (env pairwise)
+        if (idx.graph_param_list?.length > 1) {
+          const b: Record<string, string> = {};
+          for (const [k, v] of Object.entries(idx.graph_param_list[1])) {
+            if (v != null) b[k] = String(v);
+          }
+          setStateB(b);
+        } else {
+          setStateB(d);
+        }
+        const revs = Object.keys(idx.revision_to_hash).map(Number).sort((a, b) => a - b);
+        if (revs.length) {
+          setRevA(revs[Math.max(0, revs.length - 6)]);
+          setRevB(revs[revs.length - 1]);
+        }
         document.title = `${idx.project} · asv tachyon`;
       })
       .catch((e: Error) => setError(e.message));
@@ -110,6 +195,57 @@ export default function App() {
       .catch(() => setSeries({ x: [], y: [] }))
       .finally(() => setLoadingGraph(false));
   }, [index, selected, state]);
+
+  // Pairwise values for Compare view
+  useEffect(() => {
+    if (!index || view !== "compare") return;
+    let cancelled = false;
+    setPairLoading(true);
+    (async () => {
+      const names = Object.keys(index.benchmarks);
+      const a: Record<string, number | null> = {};
+      const b: Record<string, number | null> = {};
+      await Promise.all(
+        names.map(async (name) => {
+          try {
+            if (pairMode === "env") {
+              const sa = scalarSeries(await loadGraph(graphToPath(name, stateA)));
+              const sb = scalarSeries(await loadGraph(graphToPath(name, stateB)));
+              a[name] = sa.y.length ? sa.y[sa.y.length - 1] : null;
+              b[name] = sb.y.length ? sb.y[sb.y.length - 1] : null;
+            } else {
+              const s = scalarSeries(await loadGraph(graphToPath(name, state)));
+              a[name] = revA != null ? valueAtRevision(s, revA) : null;
+              b[name] = revB != null ? valueAtRevision(s, revB) : null;
+            }
+          } catch {
+            a[name] = null;
+            b[name] = null;
+          }
+        }),
+      );
+      if (!cancelled) {
+        setPairValsA(a);
+        setPairValsB(b);
+        setPairLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [index, view, pairMode, stateA, stateB, state, revA, revB]);
+
+  // Dual series when a selected bench is open in compare/explore with env pair
+  useEffect(() => {
+    if (!index || !selected || pairMode !== "env" || view === "overview") {
+      setSeriesB({ x: [], y: [] });
+      return;
+    }
+    if (view !== "compare" && view !== "explore") return;
+    loadGraph(graphToPath(selected, stateB))
+      .then((pts) => setSeriesB(scalarSeries(pts)))
+      .catch(() => setSeriesB({ x: [], y: [] }));
+  }, [index, selected, stateB, pairMode, view]);
 
   function openBench(name: string) {
     setSelected(name);
@@ -363,58 +499,247 @@ export default function App() {
         <div className="main">
           <div className="page-head">
             <div>
-              <h1>Compare snapshot</h1>
-              <p>First vs last revision under the current selectors — click a row to explore.</p>
+              <h1>Pairwise compare</h1>
+              <p>
+                Spyglass-style <strong>Before → After</strong> ratios over published graphs.
+                Same factor semantics as <code>asv compare</code> / asv-spyglass.
+              </p>
+            </div>
+            <div className="summary-pills">
+              {(() => {
+                const rows = buildPairRows(
+                  benches.map((b) => b.name),
+                  Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                  pairValsA,
+                  pairValsB,
+                  { factor, onlyChanged: false },
+                );
+                const nImp = rows.filter((r) => r.mark === "-").length;
+                const nReg = rows.filter((r) => r.mark === "+").length;
+                return (
+                  <>
+                    <span className="chip ok">{nImp} improved</span>
+                    <span className="chip bad">{nReg} regressed</span>
+                    <span className="chip">factor {factor}</span>
+                  </>
+                );
+              })()}
             </div>
           </div>
-          <div className="filters">
-            {Object.entries(index.params).map(([key, values]) => (
-              <label className="filter" key={key}>
-                <span>{key}</span>
-                <select
-                  value={state[key] ?? values[0] ?? ""}
-                  onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
-                >
-                  {values.map((v) => (
-                    <option key={v} value={v}>{v}</option>
+
+          <div className="card pair-toolbar">
+            <div className="seg mode-seg">
+              <button type="button" className={pairMode === "env" ? "active" : ""} onClick={() => setPairMode("env")}>
+                Env pair
+              </button>
+              <button type="button" className={pairMode === "revision" ? "active" : ""} onClick={() => setPairMode("revision")}>
+                Revision pair
+              </button>
+            </div>
+
+            {pairMode === "env" ? (
+              <>
+                <div className="pair-side before">
+                  <span className="tag">Before</span>
+                  {Object.entries(index.params).map(([key, values]) => (
+                    <label className="filter" key={"a-" + key}>
+                      <span>{key}</span>
+                      <select
+                        value={stateA[key] ?? values[0] ?? ""}
+                        onChange={(e) => setStateA((s) => ({ ...s, [key]: e.target.value }))}
+                      >
+                        {values.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
                   ))}
+                </div>
+                <div className="pair-arrow">→</div>
+                <div className="pair-side after">
+                  <span className="tag">After</span>
+                  {Object.entries(index.params).map(([key, values]) => (
+                    <label className="filter" key={"b-" + key}>
+                      <span>{key}</span>
+                      <select
+                        value={stateB[key] ?? values[0] ?? ""}
+                        onChange={(e) => setStateB((s) => ({ ...s, [key]: e.target.value }))}
+                      >
+                        {values.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="pair-side before">
+                  <span className="tag">Before rev</span>
+                  <label className="filter">
+                    <span>revision</span>
+                    <select
+                      value={revA ?? ""}
+                      onChange={(e) => setRevA(Number(e.target.value))}
+                    >
+                      {Object.keys(index.revision_to_hash)
+                        .map(Number)
+                        .sort((a, b) => a - b)
+                        .map((r) => (
+                          <option key={r} value={r}>
+                            {r} · {commitHash(index, r)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="pair-arrow">→</div>
+                <div className="pair-side after">
+                  <span className="tag">After rev</span>
+                  <label className="filter">
+                    <span>revision</span>
+                    <select
+                      value={revB ?? ""}
+                      onChange={(e) => setRevB(Number(e.target.value))}
+                    >
+                      {Object.keys(index.revision_to_hash)
+                        .map(Number)
+                        .sort((a, b) => a - b)
+                        .map((r) => (
+                          <option key={r} value={r}>
+                            {r} · {commitHash(index, r)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="filters" style={{ margin: 0 }}>
+                  {Object.entries(index.params).map(([key, values]) => (
+                    <label className="filter" key={"env-" + key}>
+                      <span>{key}</span>
+                      <select
+                        value={state[key] ?? values[0] ?? ""}
+                        onChange={(e) => setState((s) => ({ ...s, [key]: e.target.value }))}
+                      >
+                        {values.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="pair-controls">
+              <label className="filter">
+                <span>factor</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={0.05}
+                  value={factor}
+                  onChange={(e) => setFactor(Number(e.target.value) || 1.1)}
+                />
+              </label>
+              <label className="filter">
+                <span>sort</span>
+                <select value={sortPair} onChange={(e) => setSortPair(e.target.value as "default" | "ratio" | "name")}>
+                  <option value="ratio">ratio</option>
+                  <option value="name">name</option>
+                  <option value="default">default</option>
                 </select>
               </label>
-            ))}
+              <label className="chk">
+                <input
+                  type="checkbox"
+                  checked={onlyChanged}
+                  onChange={(e) => setOnlyChanged(e.target.checked)}
+                />
+                only changed
+              </label>
+            </div>
           </div>
-          <div className="card card-pad" style={{ overflow: "auto" }}>
-            <table className="compare-table">
-              <thead>
-                <tr>
-                  <th>Benchmark</th>
-                  <th>Type</th>
-                  <th>First</th>
-                  <th>Latest</th>
-                  <th>Δ</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {compareRows.map(({ b, st }) => {
-                  const y = sparks[b.name] || [];
-                  const first = y.length ? y[0] : null;
-                  const delta = st.change;
-                  return (
-                    <tr key={b.name} onClick={() => openBench(b.name)}>
-                      <td className="mono">{b.name}</td>
-                      <td><span className={`chip ${typeChip(b.type)}`}>{b.type}</span></td>
-                      <td className="mono">{first != null ? prettyUnit(first, b.unit) : "—"}</td>
-                      <td className="mono">{st.latest != null ? prettyUnit(st.latest, b.unit) : "—"}</td>
-                      <td className={delta != null && delta > 0.05 ? "delta-up" : delta != null && delta < -0.05 ? "delta-down" : "muted"}>
-                        {delta != null ? `${(delta * 100).toFixed(1)}%` : "—"}
-                      </td>
-                      <td>{y.length > 1 ? <Sparkline y={y} width={90} height={28} /> : null}</td>
+
+          {pairLoading ? (
+            <p className="muted">Loading pairwise series…</p>
+          ) : (
+            <>
+              <div className="card card-pad" style={{ overflow: "auto", marginBottom: "0.9rem" }}>
+                <table className="compare-table">
+                  <thead>
+                    <tr>
+                      <th>Change</th>
+                      <th>Before</th>
+                      <th>After</th>
+                      <th>Ratio</th>
+                      <th>Benchmark</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {buildPairRows(
+                      benches.map((b) => b.name),
+                      Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                      pairValsA,
+                      pairValsB,
+                      { factor, onlyChanged, sort: sortPair },
+                    ).map((row: PairRow) => (
+                      <tr
+                        key={row.name}
+                        className={
+                          "row-" +
+                          row.color +
+                          (selected === row.name ? " selected" : "")
+                        }
+                        onClick={() => {
+                          setSelected(row.name);
+                          if (pairMode === "env") {
+                            // keep dual series visible under table
+                          }
+                        }}
+                      >
+                        <td className="mark">{row.mark}</td>
+                        <td className="mono">
+                          {row.before != null ? prettyUnit(row.before, row.unit) : "n/a"}
+                        </td>
+                        <td className="mono">
+                          {row.after != null ? prettyUnit(row.after, row.unit) : "n/a"}
+                        </td>
+                        <td className="mono">
+                          {row.ratio != null ? row.ratio.toFixed(2) : "n/a"}
+                        </td>
+                        <td>
+                          <span className="mono">{row.name}</span>{" "}
+                          <span className={`chip ${typeChip(row.type)}`}>{row.type}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {selected && pairMode === "env" && (
+                <div className="card chart-card">
+                  <h2 style={{ margin: "0.25rem 0 0.75rem" }}>
+                    Overlay · <span className="mono">{selected}</span>
+                  </h2>
+                  {(() => {
+                    const sa = series; // may be for state not stateA — reload via align from sparks not enough
+                    return null;
+                  })()}
+                  <PairOverlay
+                    name={selected}
+                    stateA={stateA}
+                    stateB={stateB}
+                    unit={index.benchmarks[selected]?.unit || "seconds"}
+                    labelA={Object.values(stateA).join(" / ")}
+                    labelB={Object.values(stateB).join(" / ")}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
