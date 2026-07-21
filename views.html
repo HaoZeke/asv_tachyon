@@ -2,8 +2,8 @@
 <html lang="en" data-accent-color="teal" data-content_root="./">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>asv-tachyon</title><link rel="shortcut icon" href="_static/favicon.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Usage" href="usage.html" />
-      <link rel="canonical" href="https://haozeke.github.io/asv_tachyon/" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Views - asv-tachyon</title><link rel="shortcut icon" href="_static/favicon.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Usage" href="usage.html" />
+      <link rel="canonical" href="https://haozeke.github.io/asv_tachyon/views.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="_static/pygments.css?v=e1a1ceaf" />
@@ -21,14 +21,14 @@
 </style>
     
   <meta property="og:type" content="website"/>
-  <meta property="og:url" content="https://haozeke.github.io/asv_tachyon/"/>
-  <meta property="og:title" content="asv-tachyon"/>
+  <meta property="og:url" content="https://haozeke.github.io/asv_tachyon/views.html"/>
+  <meta property="og:title" content="Views"/>
     <meta name="twitter:card" content="summary"/>
   </head>
 <body><div class="sy-head">
   <div class="sy-head-blur"></div>
   <div class="sy-head-inner sy-container mx-auto">
-    <a class="sy-head-brand" href="#">
+    <a class="sy-head-brand" href="index.html">
       <img class="light-logo" src="_static/asv_tachyon_logo.png" alt="asv-tachyon" height="28" loading="lazy" />
       <img class="dark-logo" src="_static/asv_tachyon_logo.png" alt="asv-tachyon" height="28" loading="lazy" />
       <strong>asv-tachyon</strong>
@@ -62,9 +62,9 @@ data-aria-dark="Switch to auto color mode">
   <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
     <div class="sy-lside-inner md:sticky">
       <div class="sy-scrollbar p-6">
-        <div class="globaltoc" data-expand-depth="1"><ul>
+        <div class="globaltoc" data-expand-depth="1"><ul class="current">
 <li class="toctree-l1 _expand"><a class="reference internal" href="usage.html">Usage</a></li>
-<li class="toctree-l1 _expand"><a class="reference internal" href="views.html">Views</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Views</a></li>
 </ul>
         </div>
       </div>
@@ -76,10 +76,9 @@ data-aria-dark="Switch to auto color mode">
       <i class="i-lucide close"></i>
     </button>
     <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
-<li><a class="reference internal" href="#install">Install</a></li>
-<li><a class="reference internal" href="#views">Views</a></li>
-<li><a class="reference internal" href="#ecosystem">Ecosystem</a></li>
-<li><a class="reference internal" href="#indices">Indices</a></li>
+<li><a class="reference internal" href="#overview">Overview</a></li>
+<li><a class="reference internal" href="#compare">Compare</a></li>
+<li><a class="reference internal" href="#inventory">Inventory</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
   </aside>
@@ -93,8 +92,12 @@ data-aria-dark="Switch to auto color mode">
       </button>
     </div>
     <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-        <a itemprop="item" href="#"><span itemprop="name">asv-tachyon</span></a>
+        <a itemprop="item" href="index.html"><span itemprop="name">asv-tachyon</span></a>
+        <span>/</span>
         <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">Views</strong>
+        <meta itemprop="position" content="2" />
       </li></ol>
     <div class="xl:hidden ml-1">
       <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
@@ -106,66 +109,44 @@ data-aria-dark="Switch to auto color mode">
 </div><div class="flex flex-col break-words justify-between">
       <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
   <article class="yue" role="main">
-          <section id="asv-tachyon">
-<h1>asv-tachyon<a class="headerlink" href="#asv-tachyon" title="Link to this heading">#</a></h1>
-<p><strong>Modern web UI for airspeed velocity results.</strong></p>
-<p>Drop-in shell over the same static tree <code class="docutils literal notranslate"><span class="pre">asv</span> <span class="pre">publish</span></code> already writes
-(<code class="docutils literal notranslate"><span class="pre">index.json</span></code>, <code class="docutils literal notranslate"><span class="pre">graphs/**</span></code>, <code class="docutils literal notranslate"><span class="pre">regressions.json</span></code>). No server-side app,
-no new result format.</p>
-<p>
-  <img class="hero-shot" src="_static/overview.jpg"
-       alt="asv-tachyon Overview — performance atlas with sparklines"
-       width="100%" />
-</p>
-<p style="text-align:center;opacity:0.75"><em>Overview — sparkline tiles over published ASV graphs</em></p><section id="install">
-<h2>Install<a class="headerlink" href="#install" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">pip<span class="w"> </span>install<span class="w"> </span>asv-tachyon
-</span><span data-line="2">asv<span class="w"> </span>publish
-</span><span data-line="3">asv-tachyon<span class="w"> </span>serve<span class="w"> </span>.asv/html<span class="w"> </span>--open
-</span></pre></div>
-</div>
-<p>Or replace the legacy <code class="docutils literal notranslate"><span class="pre">index.html</span></code> in place:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">asv-tachyon<span class="w"> </span>install<span class="w"> </span>.asv/html
-</span><span data-line="2">asv-tachyon<span class="w"> </span>serve<span class="w"> </span>.asv/html
-</span></pre></div>
-</div>
-<p>Demo without a project:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">asv-tachyon<span class="w"> </span>serve<span class="w"> </span>fixtures/sample_site<span class="w"> </span>--open
-</span></pre></div>
-</div>
+          <section id="views">
+<h1>Views<a class="headerlink" href="#views" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Sparkline tiles for every benchmark, filtered by the published <code class="docutils literal notranslate"><span class="pre">params</span></code>
+(machine, branch, python, …). Search matches name or type.</p>
+<a class="hero-shot reference internal image-reference" href="_images/overview.jpg"><img alt="Overview view" class="hero-shot" src="_images/overview.jpg" style="width: 100%;" />
+</a>
 </section>
-<section id="views">
-<h2>Views<a class="headerlink" href="#views" title="Link to this heading">#</a></h2>
-<div class="gallery">
-  <figure>
-    <img src="_static/compare.jpg" alt="Compare view" />
-    <figcaption><strong>Compare</strong> — spyglass-style Before / After / Ratio</figcaption>
-  </figure>
-  <figure>
-    <img src="_static/inventory.jpg" alt="Inventory view" />
-    <figcaption><strong>Inventory</strong> — SBOM-style env lock diffs</figcaption>
-  </figure>
-</div><ul class="simple">
-<li><p><strong>Overview</strong> — fluid sparkline atlas, search, light/dark themes</p></li>
-<li><p><strong>Explore</strong> — full uPlot series, recent points, source snippet</p></li>
-<li><p><strong>Compare</strong> — pairwise ratios with the same factor semantics as
-<code class="docutils literal notranslate"><span class="pre">asv</span> <span class="pre">compare</span></code> / asv-spyglass (env or revision pairs)</p></li>
-<li><p><strong>Inventory</strong> — added / removed / version-bumped over published params
-or two dropped ASV result JSON files (same classify as
-<code class="docutils literal notranslate"><span class="pre">asv-spyglass</span> <span class="pre">env-diff</span></code>)</p></li>
-</ul>
-</section>
-<section id="ecosystem">
-<h2>Ecosystem<a class="headerlink" href="#ecosystem" title="Link to this heading">#</a></h2>
-<div class="toctree-wrapper compound">
-</div>
-</section>
-<section id="indices">
-<h2>Indices<a class="headerlink" href="#indices" title="Link to this heading">#</a></h2>
+<section id="compare">
+<h2>Compare<a class="headerlink" href="#compare" title="Link to this heading">#</a></h2>
+<p>Spyglass-style pairwise table: <strong>Change · Before · After · Ratio · Benchmark</strong>.
+Modes:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
-<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+<li><p><strong>Env pair</strong> — two selector states (e.g. python 3.12 vs 3.13)</p></li>
+<li><p><strong>Revision pair</strong> — two commits on one env surface</p></li>
 </ul>
+<p>Factor default is <code class="docutils literal notranslate"><span class="pre">1.1</span></code> (same idea as <code class="docutils literal notranslate"><span class="pre">asv</span> <span class="pre">compare</span></code>). Click a row for an
+overlay chart of both series.</p>
+<a class="hero-shot reference internal image-reference" href="_images/compare.jpg"><img alt="Compare view" class="hero-shot" src="_images/compare.jpg" style="width: 100%;" />
+</a>
+</section>
+<section id="inventory">
+<h2>Inventory<a class="headerlink" href="#inventory" title="Link to this heading">#</a></h2>
+<p>SBOM-style lock surface (mirrors <code class="docutils literal notranslate"><span class="pre">asv-spyglass</span> <span class="pre">env-diff</span></code> / eb-stack
+<code class="docutils literal notranslate"><span class="pre">stack_diff</span></code>):</p>
+<ul class="simple">
+<li><p><strong>Published envs</strong> — diff <code class="docutils literal notranslate"><span class="pre">params</span></code> + machine facts from <code class="docutils literal notranslate"><span class="pre">index.json</span></code></p></li>
+<li><p><strong>Result files</strong> — drop two raw ASV result JSON files for the full
+requirements matrix</p></li>
+</ul>
+<p>Classifies each component as <em>added</em>, <em>removed</em>, <em>version-bumped</em>, or
+<em>unchanged</em>, with KPI cards and a stacked mix bar.</p>
+<a class="hero-shot reference internal image-reference" href="_images/inventory.jpg"><img alt="Inventory view" class="hero-shot" src="_images/inventory.jpg" style="width: 100%;" />
+</a>
+<a class="hero-shot reference internal image-reference" href="_images/inventory-all-kinds.jpg"><img alt="Inventory with all kinds" class="hero-shot" src="_images/inventory-all-kinds.jpg" style="width: 100%;" />
+</a>
+<p><em>All kinds</em> also surfaces env name and machine attributes when they differ.</p>
 </section>
 </section>
 
@@ -174,13 +155,11 @@ or two dropped ASV result JSON files (same classify as
     <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
   </svg>
   <span>Back to top</span>
-</button><div class="navigation flex print:hidden"><div class="navigation-next">
+</button><div class="navigation flex print:hidden"><div class="navigation-prev">
     <a href="usage.html">
+      <i class="i-lucide chevron-left"></i>
       <div class="page-info">
-        <span>Next</span>
-        <div class="title">Usage</div>
-      </div>
-      <i class="i-lucide chevron-right"></i>
+        <span>Previous</span><div class="title">Usage</div></div>
     </a>
   </div></div></div>
     </div>
