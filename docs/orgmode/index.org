@@ -1,0 +1,60 @@
+#+TITLE: asv-tachyon
+#+AUTHOR: [[https://rgoswami.me][Rohit Goswami]]
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil ^:nil
+
+#+begin_export rst
+===========================
+asv-tachyon
+===========================
+
+:Author: `Rohit Goswami <https://rgoswami.me>`_
+#+end_export
+
+Near-zero-overhead Tachyon sampling profiles for Airspeed Velocity benchmarks.
+
+Python 3.15's =profiling.sampling= module (Tachyon) samples call stacks from
+outside the target process. *asv-tachyon* runs ASV benchmarks under that
+sampler and turns the results into flame graphs, heatmaps, and more.
+
+* Install
+
+#+begin_src bash
+pip install asv-tachyon
+#+end_src
+
+Target environments need Python >= 3.15. The host CLI supports Python 3.10+.
+
+#+begin_export rst
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials
+
+   tutorials/first_sample
+
+.. toctree::
+   :maxdepth: 2
+   :caption: How-To Guides
+
+   howto/asv_plugin
+   howto/diff_flamegraph
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   reference/cli
+   reference/formats
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Explanation
+
+   explanation/sampling_vs_tracing
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Development
+
+   contributing/index
+#+end_export

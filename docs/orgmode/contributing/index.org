@@ -1,0 +1,13 @@
+#+TITLE: Contributing
+#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+
+* Contributing
+
+Issues and PRs welcome at https://github.com/HaoZeke/asv_tachyon.
+
+#+begin_src bash
+uv pip install -e '.[test]'
+pytest -q
+#+end_src
+
+Use Conventional Commits. Changelog fragments go in =changelog.d/=.

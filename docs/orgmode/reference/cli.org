@@ -1,0 +1,7 @@
+#+TITLE: CLI reference
+#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+
+* CLI reference
+
+Run =asv-tachyon --help= and =asv-tachyon sample --help= for the live flag
+list. Subcommands: =sample=, =replay=, =open=, =doctor=, =formats=.

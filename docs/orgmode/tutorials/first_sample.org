@@ -1,0 +1,16 @@
+#+TITLE: First sampling profile
+#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+
+* First sampling profile
+
+1. Install =asv-tachyon= into a Python 3.15 environment that can import your
+   benchmarks.
+2. From the ASV project root:
+
+#+begin_src bash
+asv-tachyon doctor --python "$(which python3.15)"
+asv-tachyon sample benchmarks.MySuite.time_hotpath --browser
+#+end_src
+
+3. Open the flame graph, find the widest plateau, fix it, and optionally capture
+   a binary baseline for a differential flame graph later.

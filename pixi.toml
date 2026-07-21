@@ -1,0 +1,46 @@
+[workspace]
+authors = ["Rohit Goswami <rgoswami@ieee.org>"]
+channels = ["conda-forge"]
+description = "Near-zero-overhead Tachyon sampling profiles for ASV benchmarks"
+name = "asv_tachyon"
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+version = "0.1.0"
+
+[dependencies]
+python = ">=3.12"
+uv = ">=0.6"
+pip = ">=24.3"
+
+[tasks.install]
+cmd = "uv pip install -e '.[test]'"
+description = "Editable install with test extras"
+
+[tasks.test]
+cmd = "uv run pytest -q"
+description = "Run unit tests"
+
+[feature.docs]
+platforms = ["linux-64"]
+
+[feature.docs.dependencies]
+emacs = ">=30.1,<31"
+sphinx = ">=8.0,<9"
+
+[feature.docs.pypi-dependencies]
+shibuya = ">=2024.1"
+sphinx-sitemap = ">=2.5"
+
+[feature.docs.tasks.mkrst]
+cmd = "emacs --batch --load export.el"
+cwd = "docs"
+description = "Export org files to RST via Emacs ox-rst"
+
+[feature.docs.tasks.sphinxbld]
+cmd = "sphinx-build docs/source/ docs/build"
+depends-on = [{ task = "mkrst", environment = "docs" }]
+
+[feature.docs.tasks.docbld]
+depends-on = ["mkrst", "sphinxbld"]
+
+[environments]
+docs = { features = ["docs"], solve-group = "default" }

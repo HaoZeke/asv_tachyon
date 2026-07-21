@@ -1,0 +1,11 @@
+#+TITLE: Sampling vs tracing
+#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+
+* Sampling vs tracing
+
+Tracing profilers (=cProfile= / =profiling.tracing=) hook every call and return.
+They give exact counts but add high overhead.
+
+Sampling profilers (Tachyon) snapshot the stack on a timer from outside the
+process. They miss rare short functions and do not report call counts, but they
+leave the workload almost undisturbed---ideal for long ASV benchmarks.

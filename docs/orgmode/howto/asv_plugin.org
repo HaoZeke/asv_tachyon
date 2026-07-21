@@ -1,0 +1,26 @@
+#+TITLE: Register the ASV plugin
+#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+
+* Register the ASV plugin
+
+Add to =asv.conf.json=:
+
+#+begin_src json
+{
+  "plugins": ["asv_tachyon.plugin"],
+  "matrix": {
+    "req": {
+      "pip+asv-tachyon": [""]
+    }
+  }
+}
+#+end_src
+
+Then:
+
+#+begin_src bash
+asv profile --gui=list
+#+end_src
+
+Use =asv-tachyon sample= to collect sampling profiles. Use
+=asv profile --gui=tachyon= only for opening Tachyon HTML artifacts.

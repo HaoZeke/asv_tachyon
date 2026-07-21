@@ -1,0 +1,53 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+src/asv_tachyon/_version.py
+
+# Testing / tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Envs
+.venv/
+venv/
+.env
+.env.*
+
+# ASV / tachyon artifacts
+.asv/
+*.tachyon.bin
+flamegraph*.html
+heatmap*/
+
+# Docs
+docs/build/
+docs/source/*.rst
+!docs/source/conf.py
+docs/source/tutorials/
+docs/source/howto/
+docs/source/reference/
+docs/source/explanation/
+docs/source/contributing/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# uv / pixi
+uv.lock
+.pixi/
