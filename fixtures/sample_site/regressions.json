@@ -1,1 +1,44 @@
-{"regressions": [["time_sort", null, "cheetah", "main", "3.12", 22, 1.2e-05, 1.74e-05, [[20, 21, 1.25e-05, 1.74e-05]]]]}
+{
+  "regressions": [
+    [
+      "time_sort",
+      "graphs/branch-main/machine-cheetah/python-3.12/time_sort.json",
+      {
+        "branch": "main",
+        "machine": "cheetah",
+        "python": "3.12"
+      },
+      null,
+      1.74e-05,
+      1.2e-05,
+      [
+        [
+          20,
+          21,
+          1.25e-05,
+          1.74e-05
+        ]
+      ]
+    ],
+    [
+      "time_keys(n=1000)",
+      "graphs/branch-main/machine-cheetah/python-3.12/time_keys.json",
+      {
+        "branch": "main",
+        "machine": "cheetah",
+        "python": "3.12"
+      },
+      2,
+      0.000136,
+      0.0001012,
+      [
+        [
+          18,
+          19,
+          0.00011,
+          0.000136
+        ]
+      ]
+    ]
+  ]
+}
