@@ -41,10 +41,6 @@ version-file = "src/asv_tachyon/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/asv_tachyon"]
 
-# Ship prebuilt web assets inside the wheel
-[tool.hatch.build.targets.wheel.force-include]
-"web/dist" = "asv_tachyon/static"
-
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
