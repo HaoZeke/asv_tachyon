@@ -34,8 +34,8 @@ heatmap*/
 
 # Docs
 docs/build/
-docs/source/*.rst
-!docs/source/conf.py
+# hand-authored Sphinx pages are tracked; org export used to dump into
+# docs/source/*.rst — ignore only the old diataxis dumps if re-exported
 docs/source/tutorials/
 docs/source/howto/
 docs/source/reference/
