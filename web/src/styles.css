@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap");
+/* Fonts: @fontsource packages imported from main.tsx (offline-safe). */
 
 :root,
 [data-theme="dark"] {
@@ -725,4 +725,71 @@ code, .mono { font-family: var(--mono); }
 
 @media (max-width: 960px) {
   .inv-hero { grid-template-columns: 1fr; }
+}
+
+/* —— param multi-series picker / multi-env chips —— */
+.param-picker { margin-bottom: 0.9rem; }
+.param-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.param-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--text-dim);
+  transition: 0.12s ease;
+}
+.param-chip:hover { color: var(--text); border-color: var(--line-strong); }
+.param-chip.on {
+  color: var(--text);
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg1));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+.param-chip.base {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+}
+.param-chip .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px color-mix(in oklab, white 25%, transparent);
+}
+.env-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  flex: 1;
+  min-width: 12rem;
+}
+.env-multi .tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.compare-table .cell-green .mark { color: var(--ok); }
+.compare-table .cell-red .mark { color: var(--danger); }
+
+.filter input[type="range"] {
+  width: 10rem;
+  accent-color: var(--accent);
+}
+.filter input[type="number"] {
+  width: 4.5rem;
+  border: 1px solid var(--line);
+  background: var(--bg1);
+  border-radius: 8px;
+  padding: 0.4rem 0.45rem;
 }
