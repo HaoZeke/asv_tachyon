@@ -4,26 +4,36 @@
   "show_commit_url": "https://github.com/airspeed-velocity/asv/commit/",
   "hash_length": 8,
   "revision_to_hash": {
-    "1": "00000001deadbeef",
-    "2": "00000002deadbeef",
-    "3": "00000003deadbeef",
-    "4": "00000004deadbeef",
-    "5": "00000005deadbeef",
-    "6": "00000006deadbeef",
-    "7": "00000007deadbeef",
-    "8": "00000008deadbeef",
-    "9": "00000009deadbeef",
-    "10": "0000000adeadbeef",
-    "11": "0000000bdeadbeef",
-    "12": "0000000cdeadbeef",
-    "13": "0000000ddeadbeef",
-    "14": "0000000edeadbeef",
-    "15": "0000000fdeadbeef",
-    "16": "00000010deadbeef",
-    "17": "00000011deadbeef",
-    "18": "00000012deadbeef",
-    "19": "00000013deadbeef",
-    "20": "00000014deadbeef"
+    "1": "00000001abcdef00",
+    "2": "00000002abcdef00",
+    "3": "00000003abcdef00",
+    "4": "00000004abcdef00",
+    "5": "00000005abcdef00",
+    "6": "00000006abcdef00",
+    "7": "00000007abcdef00",
+    "8": "00000008abcdef00",
+    "9": "00000009abcdef00",
+    "10": "0000000aabcdef00",
+    "11": "0000000babcdef00",
+    "12": "0000000cabcdef00",
+    "13": "0000000dabcdef00",
+    "14": "0000000eabcdef00",
+    "15": "0000000fabcdef00",
+    "16": "00000010abcdef00",
+    "17": "00000011abcdef00",
+    "18": "00000012abcdef00",
+    "19": "00000013abcdef00",
+    "20": "00000014abcdef00",
+    "21": "00000015abcdef00",
+    "22": "00000016abcdef00",
+    "23": "00000017abcdef00",
+    "24": "00000018abcdef00",
+    "25": "00000019abcdef00",
+    "26": "0000001aabcdef00",
+    "27": "0000001babcdef00",
+    "28": "0000001cabcdef00",
+    "29": "0000001dabcdef00",
+    "30": "0000001eabcdef00"
   },
   "revision_to_date": {
     "1": 1700086400000,
@@ -45,7 +55,17 @@
     "17": 1701468800000,
     "18": 1701555200000,
     "19": 1701641600000,
-    "20": 1701728000000
+    "20": 1701728000000,
+    "21": 1701814400000,
+    "22": 1701900800000,
+    "23": 1701987200000,
+    "24": 1702073600000,
+    "25": 1702160000000,
+    "26": 1702246400000,
+    "27": 1702332800000,
+    "28": 1702419200000,
+    "29": 1702505600000,
+    "30": 1702592000000
   },
   "params": {
     "branch": [
@@ -55,7 +75,8 @@
       "cheetah"
     ],
     "python": [
-      "3.12"
+      "3.12",
+      "3.13"
     ]
   },
   "graph_param_list": [
@@ -63,37 +84,40 @@
       "branch": "main",
       "machine": "cheetah",
       "python": "3.12"
+    },
+    {
+      "branch": "main",
+      "machine": "cheetah",
+      "python": "3.13"
     }
   ],
   "machines": {
     "cheetah": {
       "arch": "x86_64",
-      "cpu": "Intel",
+      "cpu": "Ryzen 9",
       "machine": "cheetah",
       "os": "Linux",
-      "ram": "16GB"
+      "ram": "64GB"
     }
   },
   "tags": {
-    "v1.0": 5,
-    "v1.1": 15
+    "v1.0.0": 5,
+    "v1.1.0": 15,
+    "v1.2.0": 25
   },
   "benchmarks": {
     "time_sort": {
-      "code": "def time_sort():\n    sorted(range(1000), reverse=True)\n",
       "name": "time_sort",
-      "param_names": [],
-      "params": [],
       "type": "time",
       "unit": "seconds",
-      "timeout": 60
+      "params": [],
+      "param_names": [],
+      "code": "def time_sort():\n    sorted(range(10_000), reverse=True)\n"
     },
     "time_keys": {
-      "code": "def time_keys(n):\n    ...\n",
       "name": "time_keys",
-      "param_names": [
-        "n"
-      ],
+      "type": "time",
+      "unit": "seconds",
       "params": [
         [
           "10",
@@ -101,18 +125,66 @@
           "1000"
         ]
       ],
+      "param_names": [
+        "n"
+      ],
+      "code": "def time_keys(n):\n    d = {i: i for i in range(n)}\n    list(d.keys())\n"
+    },
+    "time_values": {
+      "name": "time_values",
       "type": "time",
       "unit": "seconds",
-      "timeout": 60
+      "params": [
+        [
+          "10",
+          "100",
+          "1000"
+        ]
+      ],
+      "param_names": [
+        "n"
+      ],
+      "code": "def time_values(n):\n    d = {i: i for i in range(n)}\n    list(d.values())\n"
+    },
+    "time_ranges": {
+      "name": "time_ranges",
+      "type": "time",
+      "unit": "seconds",
+      "params": [],
+      "param_names": [],
+      "code": "def time_ranges():\n    list(range(10000))\n"
     },
     "mem_list": {
-      "code": "def mem_list():\n    return [0]*255\n",
       "name": "mem_list",
-      "param_names": [],
-      "params": [],
       "type": "memory",
       "unit": "bytes",
-      "timeout": 60
+      "params": [],
+      "param_names": [],
+      "code": "def mem_list():\n    return [0] * 255\n"
+    },
+    "mem_dict": {
+      "name": "mem_dict",
+      "type": "memory",
+      "unit": "bytes",
+      "params": [],
+      "param_names": [],
+      "code": "def mem_dict():\n    return {i: i for i in range(100)}\n"
+    },
+    "peakmem_parse": {
+      "name": "peakmem_parse",
+      "type": "peakmemory",
+      "unit": "bytes",
+      "params": [],
+      "param_names": [],
+      "code": "def peakmem_parse():\n    data = open('x').read()\n"
+    },
+    "track_count": {
+      "name": "track_count",
+      "type": "track",
+      "unit": "unit",
+      "params": [],
+      "param_names": [],
+      "code": "def track_count():\n    return 42\n"
     }
   },
   "pages": []

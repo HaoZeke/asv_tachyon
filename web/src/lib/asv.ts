@@ -28,11 +28,9 @@ export type AsvIndex = {
 export type GraphPoint = [number, number | number[] | null];
 
 export function sanitizeFilename(name: string): string {
-  // Match asv.util.sanitize_filename sufficiently for common cases
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
 }
 
-/** Build graph JSON path; must match asv.graph.Graph.get_file_path / asv.js graph_to_path */
 export function graphToPath(
   benchmarkName: string,
   state: Record<string, string | null | undefined>,
@@ -68,19 +66,14 @@ export function defaultState(index: AsvIndex): Record<string, string> {
 }
 
 export async function loadIndex(base = ""): Promise<AsvIndex> {
-  const url = `${base}index.json`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+  const res = await fetch(`${base}index.json`);
+  if (!res.ok) throw new Error(`Failed to load index.json: ${res.status}`);
   return res.json();
 }
 
-export async function loadGraph(
-  path: string,
-  base = "",
-): Promise<GraphPoint[]> {
-  const url = `${base}${path}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+export async function loadGraph(path: string, base = ""): Promise<GraphPoint[]> {
+  const res = await fetch(`${base}${path}`);
+  if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
   return res.json();
 }
 
@@ -88,35 +81,23 @@ export function prettyUnit(x: number, unit: string): string {
   if (!Number.isFinite(x)) return "—";
   if (unit === "seconds") {
     const units: [string, number][] = [
-      ["ps", 1e-12],
-      ["ns", 1e-9],
-      ["µs", 1e-6],
-      ["ms", 1e-3],
-      ["s", 1],
-      ["m", 60],
-      ["h", 3600],
+      ["ps", 1e-12], ["ns", 1e-9], ["µs", 1e-6], ["ms", 1e-3],
+      ["s", 1], ["m", 60], ["h", 3600],
     ];
     for (let i = 0; i < units.length - 1; i++) {
-      if (Math.abs(x) < units[i + 1][1]) {
-        return (x / units[i][1]).toFixed(3) + units[i][0];
-      }
+      if (Math.abs(x) < units[i + 1][1]) return (x / units[i][1]).toFixed(3) + units[i][0];
     }
     return (x / 3600).toFixed(3) + "h";
   }
   if (unit === "bytes") {
-    const units: [string, number][] = [
-      ["B", 1],
-      ["kB", 1e3],
-      ["MB", 1e6],
-      ["GB", 1e9],
-    ];
+    const units: [string, number][] = [["B", 1], ["kB", 1e3], ["MB", 1e6], ["GB", 1e9]];
     for (let i = 0; i < units.length - 1; i++) {
       if (Math.abs(x) < units[i + 1][1]) {
         if (i === 0) return `${Math.round(x)}B`;
-        return (x / units[i][1]).toFixed(3) + units[i][0];
+        return (x / units[i][1]).toFixed(2) + units[i][0];
       }
     }
-    return (x / 1e9).toFixed(3) + "GB";
+    return (x / 1e9).toFixed(2) + "GB";
   }
   return x.toPrecision(4) + (unit && unit !== "unit" ? ` ${unit}` : "");
 }
@@ -133,7 +114,6 @@ export function scalarSeries(points: GraphPoint[]): { x: number[]; y: number[] }
   for (const [rev, val] of points) {
     if (val == null) continue;
     if (Array.isArray(val)) {
-      // average non-null params for overview
       const nums = val.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
       if (!nums.length) continue;
       x.push(rev);
@@ -146,17 +126,25 @@ export function scalarSeries(points: GraphPoint[]): { x: number[]; y: number[] }
   return { x, y };
 }
 
-export function seriesStats(y: number[]): {
-  latest: number | null;
-  min: number | null;
-  max: number | null;
-  change: number | null;
-} {
-  if (!y.length) return { latest: null, min: null, max: null, change: null };
+export function seriesStats(y: number[]) {
+  if (!y.length) return { latest: null as number | null, min: null as number | null, max: null as number | null, change: null as number | null };
   const latest = y[y.length - 1];
   const min = Math.min(...y);
   const max = Math.max(...y);
   const first = y[0];
-  const change = first !== 0 ? (latest - first) / first : null;
+  const change = first !== 0 ? (latest - first) / Math.abs(first) : null;
   return { latest, min, max, change };
+}
+
+export function downsample(x: number[], y: number[], maxPoints = 40): { x: number[]; y: number[] } {
+  if (x.length <= maxPoints) return { x, y };
+  const step = (x.length - 1) / (maxPoints - 1);
+  const ox: number[] = [];
+  const oy: number[] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round(i * step);
+    ox.push(x[idx]);
+    oy.push(y[idx]);
+  }
+  return { x: ox, y: oy };
 }
