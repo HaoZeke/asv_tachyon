@@ -1,16 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AsvIndex,
   BenchmarkInfo,
+  EnvColumn,
+  MultiEnvRow,
+  NamedSeries,
   PairRow,
+  RegressionEntry,
   alignDualSeries,
+  buildMultiEnvRows,
   buildPairRows,
   commitHash,
   defaultState,
   downsample,
+  formatHash,
+  seriesColor,
+  graphParamStates,
   graphToPath,
   loadGraph,
   loadIndex,
+  loadRegressions,
+  multiSeriesFromGraph,
+  paramCombos,
+  parseHash,
+  parseRegressions,
   prettyUnit,
   scalarSeries,
   seriesStats,
@@ -18,8 +31,9 @@ import {
 } from "./lib/asv";
 import { Chart, Sparkline } from "./components/Chart";
 import { InventoryView } from "./components/InventoryView";
+import { RegressionsView } from "./components/RegressionsView";
 
-type View = "overview" | "explore" | "compare" | "inventory";
+type View = "overview" | "explore" | "compare" | "inventory" | "regressions";
 
 function typeChip(t: string) {
   const k = t.toLowerCase();
@@ -44,7 +58,6 @@ function SearchIcon() {
     </svg>
   );
 }
-
 
 function PairOverlay({
   name,
@@ -96,29 +109,50 @@ function PairOverlay({
   );
 }
 
+function stateFromGraphParam(gp: Record<string, string | null>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(gp)) {
+    if (v != null) out[k] = String(v);
+  }
+  return out;
+}
+
 export default function App() {
   const [index, setIndex] = useState<AsvIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("overview");
   const [selected, setSelected] = useState<string | null>(null);
+  /** Explore / overview / revision-pair env filters — preserved across bench switches. */
   const [state, setState] = useState<Record<string, string>>({});
   const [series, setSeries] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [multiSeries, setMultiSeries] = useState<{ x: number[]; series: NamedSeries[] }>({
+    x: [],
+    series: [],
+  });
+  /** Selected flat param indices for multi-series overlays (stable colors by index). */
+  const [paramSel, setParamSel] = useState<number[] | null>(null);
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
   const [loadingGraph, setLoadingGraph] = useState(false);
-  // Pairwise (spyglass-style)
+  // Pairwise / multi-env compare
   const [pairMode, setPairMode] = useState<"env" | "revision">("env");
   const [stateA, setStateA] = useState<Record<string, string>>({});
   const [stateB, setStateB] = useState<Record<string, string>>({});
+  /** graph_param_list indices: [baseline, contender1, contender2, …] */
+  const [envSel, setEnvSel] = useState<number[]>([0, 1]);
   const [revA, setRevA] = useState<number | null>(null);
   const [revB, setRevB] = useState<number | null>(null);
   const [factor, setFactor] = useState(1.1);
+  const [regFactor, setRegFactor] = useState(1.05);
   const [onlyChanged, setOnlyChanged] = useState(true);
   const [sortPair, setSortPair] = useState<"default" | "ratio" | "name">("ratio");
   const [pairValsA, setPairValsA] = useState<Record<string, number | null>>({});
   const [pairValsB, setPairValsB] = useState<Record<string, number | null>>({});
-  const [seriesB, setSeriesB] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [multiEnvVals, setMultiEnvVals] = useState<Record<string, number | null>[]>([]);
   const [pairLoading, setPairLoading] = useState(false);
+  const [regressions, setRegressions] = useState<RegressionEntry[]>([]);
+  const [regMissing, setRegMissing] = useState(false);
+  const [hashReady, setHashReady] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("asv-tachyon-theme");
     if (saved === "light" || saved === "dark") return saved;
@@ -130,32 +164,91 @@ export default function App() {
     localStorage.setItem("asv-tachyon-theme", theme);
   }, [theme]);
 
+  // Initial load: index + regressions + apply URL hash
   useEffect(() => {
-    loadIndex()
-      .then((idx) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const idx = await loadIndex();
+        if (cancelled) return;
         setIndex(idx);
         const d = defaultState(idx);
-        setState(d);
-        setStateA(d);
-        // Prefer a second graph_param_list entry when available (env pairwise)
-        if (idx.graph_param_list?.length > 1) {
-          const b: Record<string, string> = {};
-          for (const [k, v] of Object.entries(idx.graph_param_list[1])) {
-            if (v != null) b[k] = String(v);
-          }
-          setStateB(b);
+        const hash = parseHash();
+        const filters = { ...d, ...(hash.filters || {}) };
+        // only keep keys that exist in params
+        const clean: Record<string, string> = {};
+        for (const k of Object.keys(idx.params || {})) {
+          clean[k] = filters[k] ?? d[k] ?? (idx.params[k]?.[0] ?? "");
+        }
+        setState(clean);
+        setStateA(clean);
+        const envs = graphParamStates(idx);
+        if (hash.envs?.length) {
+          setEnvSel(hash.envs);
+          if (envs[hash.envs[0]]) setStateA(envs[hash.envs[0]].state);
+          if (envs[hash.envs[1]]) setStateB(envs[hash.envs[1]].state);
+        } else if (idx.graph_param_list?.length > 1) {
+          setStateB(stateFromGraphParam(idx.graph_param_list[1]));
+          setEnvSel([0, 1]);
         } else {
-          setStateB(d);
+          setStateB(clean);
+          setEnvSel([0]);
         }
         const revs = Object.keys(idx.revision_to_hash).map(Number).sort((a, b) => a - b);
         if (revs.length) {
           setRevA(revs[Math.max(0, revs.length - 6)]);
           setRevB(revs[revs.length - 1]);
         }
+        if (hash.view && ["overview", "explore", "compare", "inventory", "regressions"].includes(hash.view)) {
+          setView(hash.view as View);
+        }
+        if (hash.bench && idx.benchmarks[hash.bench]) {
+          setSelected(hash.bench);
+          if (!hash.view) setView("explore");
+        }
+        if (hash.factor != null) {
+          setFactor(hash.factor);
+          setRegFactor(hash.factor);
+        }
+        if (hash.pairMode) setPairMode(hash.pairMode);
+        if (hash.params) setParamSel(hash.params);
         document.title = `${idx.project} · asv tachyon`;
-      })
-      .catch((e: Error) => setError(e.message));
+
+        const reg = await loadRegressions();
+        if (cancelled) return;
+        if (reg == null) {
+          setRegMissing(true);
+          setRegressions([]);
+        } else {
+          setRegMissing(false);
+          setRegressions(parseRegressions(reg));
+        }
+        setHashReady(true);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Write URL hash when key explore/compare state changes (after init)
+  useEffect(() => {
+    if (!hashReady || !index) return;
+    const next = formatHash({
+      view,
+      bench: selected || undefined,
+      filters: state,
+      params: paramSel || undefined,
+      factor: view === "regressions" ? regFactor : factor,
+      envs: pairMode === "env" ? envSel : undefined,
+      pairMode: view === "compare" ? pairMode : undefined,
+    });
+    if (next !== window.location.hash) {
+      history.replaceState(null, "", next || window.location.pathname + window.location.search);
+    }
+  }, [hashReady, index, view, selected, state, paramSel, factor, regFactor, envSel, pairMode]);
 
   const benches = useMemo(() => {
     if (!index) return [] as BenchmarkInfo[];
@@ -165,6 +258,12 @@ export default function App() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [index, query]);
 
+  const envColumns: EnvColumn[] = useMemo(
+    () => (index ? graphParamStates(index) : []),
+    [index],
+  );
+
+  // Sparklines for overview (scalar / averaged)
   useEffect(() => {
     if (!index || !Object.keys(state).length) return;
     let cancelled = false;
@@ -188,69 +287,164 @@ export default function App() {
     };
   }, [index, state]);
 
+  // Explore graph: multi-series when benchmark has params
   useEffect(() => {
     if (!index || !selected) return;
     setLoadingGraph(true);
+    const bench = index.benchmarks[selected];
+    const combos = paramCombos(bench);
+    const hasParams = (bench.params || []).length > 0;
     loadGraph(graphToPath(selected, state))
-      .then((pts) => setSeries(scalarSeries(pts)))
-      .catch(() => setSeries({ x: [], y: [] }))
+      .then((pts) => {
+        if (hasParams) {
+          const valid = new Set(combos.map((c) => c.index));
+          const clamped =
+            paramSel && paramSel.length
+              ? paramSel.filter((i) => valid.has(i))
+              : [];
+          const sel = clamped.length
+            ? clamped
+            : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
+          const multi = multiSeriesFromGraph(pts, combos, sel);
+          setMultiSeries(multi);
+          // scalar fallback = first selected series (for stats / recent)
+          const first = multi.series[0];
+          const y = (first?.y || []).map((v) => (v == null ? NaN : v)).filter((v) => Number.isFinite(v));
+          const x = multi.x.filter((_, i) => first && first.y[i] != null);
+          setSeries({ x, y });
+        } else {
+          const s = scalarSeries(pts);
+          setSeries(s);
+          setMultiSeries({
+            x: s.x,
+            series: [
+              {
+                index: 0,
+                label: bench.name,
+                color: "#2dd4bf",
+                y: s.y,
+              },
+            ],
+          });
+        }
+      })
+      .catch(() => {
+        setSeries({ x: [], y: [] });
+        setMultiSeries({ x: [], series: [] });
+      })
       .finally(() => setLoadingGraph(false));
-  }, [index, selected, state]);
+  }, [index, selected, state, paramSel]);
 
-  // Pairwise values for Compare view
+  // Compare values: pairwise or multi-env
   useEffect(() => {
     if (!index || view !== "compare") return;
     let cancelled = false;
     setPairLoading(true);
     (async () => {
       const names = Object.keys(index.benchmarks);
-      const a: Record<string, number | null> = {};
-      const b: Record<string, number | null> = {};
-      await Promise.all(
-        names.map(async (name) => {
-          try {
-            if (pairMode === "env") {
-              const sa = scalarSeries(await loadGraph(graphToPath(name, stateA)));
-              const sb = scalarSeries(await loadGraph(graphToPath(name, stateB)));
-              a[name] = sa.y.length ? sa.y[sa.y.length - 1] : null;
-              b[name] = sb.y.length ? sb.y[sb.y.length - 1] : null;
-            } else {
+      if (pairMode === "revision") {
+        const a: Record<string, number | null> = {};
+        const b: Record<string, number | null> = {};
+        await Promise.all(
+          names.map(async (name) => {
+            try {
               const s = scalarSeries(await loadGraph(graphToPath(name, state)));
               a[name] = revA != null ? valueAtRevision(s, revA) : null;
               b[name] = revB != null ? valueAtRevision(s, revB) : null;
+            } catch {
+              a[name] = null;
+              b[name] = null;
             }
-          } catch {
-            a[name] = null;
-            b[name] = null;
-          }
+          }),
+        );
+        if (!cancelled) {
+          setPairValsA(a);
+          setPairValsB(b);
+          setMultiEnvVals([]);
+          setPairLoading(false);
+        }
+        return;
+      }
+
+      // multi-env from envSel
+      const cols = envSel
+        .map((i) => envColumns[i])
+        .filter((c): c is EnvColumn => !!c);
+      if (!cols.length && envColumns.length) {
+        cols.push(envColumns[0]);
+        if (envColumns[1]) cols.push(envColumns[1]);
+      }
+      const buckets: Record<string, number | null>[] = cols.map(() => ({}));
+      await Promise.all(
+        names.map(async (name) => {
+          await Promise.all(
+            cols.map(async (col, ci) => {
+              try {
+                const s = scalarSeries(await loadGraph(graphToPath(name, col.state)));
+                buckets[ci][name] = s.y.length ? s.y[s.y.length - 1] : null;
+              } catch {
+                buckets[ci][name] = null;
+              }
+            }),
+          );
         }),
       );
       if (!cancelled) {
-        setPairValsA(a);
-        setPairValsB(b);
+        setMultiEnvVals(buckets);
+        if (buckets[0]) setPairValsA(buckets[0]);
+        if (buckets[1]) setPairValsB(buckets[1]);
+        else setPairValsB({});
+        // keep stateA/stateB in sync with selection for inventory + overlay
+        if (cols[0]) setStateA(cols[0].state);
+        if (cols[1]) setStateB(cols[1].state);
         setPairLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [index, view, pairMode, stateA, stateB, state, revA, revB]);
+  }, [index, view, pairMode, state, revA, revB, envSel, envColumns]);
 
-  // Dual series when a selected bench is open in compare/explore with env pair
-  useEffect(() => {
-    if (!index || !selected || pairMode !== "env" || view === "overview") {
-      setSeriesB({ x: [], y: [] });
-      return;
-    }
-    if (view !== "compare" && view !== "explore") return;
-    loadGraph(graphToPath(selected, stateB))
-      .then((pts) => setSeriesB(scalarSeries(pts)))
-      .catch(() => setSeriesB({ x: [], y: [] }));
-  }, [index, selected, stateB, pairMode, view]);
-
-  function openBench(name: string) {
+  /** Open a benchmark without resetting machine/branch/python filters. */
+  const openBench = useCallback((name: string) => {
     setSelected(name);
     setView("explore");
+    // Intentionally do NOT touch `state` / pair state — filters stay put.
+  }, []);
+
+  const openFromRegression = useCallback(
+    (bench: string, filters: Record<string, string>, paramIdx: number | null) => {
+      setState((s) => ({ ...s, ...filters }));
+      setSelected(bench);
+      if (paramIdx != null) setParamSel([paramIdx]);
+      setView("explore");
+    },
+    [],
+  );
+
+  function toggleParam(idx: number) {
+    setParamSel((prev) => {
+      const combos = index && selected ? paramCombos(index.benchmarks[selected]) : [];
+      const base =
+        prev && prev.length
+          ? [...prev]
+          : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
+      if (base.includes(idx)) {
+        const next = base.filter((i) => i !== idx);
+        return next.length ? next : base; // keep at least one
+      }
+      return [...base, idx].sort((a, b) => a - b);
+    });
+  }
+
+  function toggleEnvColumn(idx: number) {
+    setEnvSel((prev) => {
+      if (prev.includes(idx)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((i) => i !== idx);
+      }
+      return [...prev, idx];
+    });
   }
 
   if (error) {
@@ -279,7 +473,31 @@ export default function App() {
   const stats = seriesStats(series.y);
   const unit = bench?.unit || "seconds";
   const nCommits = Object.keys(index.revision_to_hash).length;
-  const compareRows = benches.map((b) => ({ b, st: seriesStats(sparks[b.name] || []) }));
+  const combos = bench ? paramCombos(bench) : [];
+  const hasParams = bench ? (bench.params || []).length > 0 : false;
+  const activeParamSel = (() => {
+    const valid = new Set(combos.map((c) => c.index));
+    const clamped =
+      paramSel && paramSel.length ? paramSel.filter((i) => valid.has(i)) : [];
+    return clamped.length
+      ? clamped
+      : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
+  })();
+
+  const multiRows: MultiEnvRow[] =
+    pairMode === "env" && multiEnvVals.length >= 1
+      ? buildMultiEnvRows(
+          benches.map((b) => b.name),
+          Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+          multiEnvVals[0] || {},
+          multiEnvVals.slice(1),
+          { factor, onlyChanged, sort: sortPair },
+        )
+      : [];
+
+  const selectedEnvCols = envSel
+    .map((i) => envColumns[i])
+    .filter((c): c is EnvColumn => !!c);
 
   return (
     <div className="app">
@@ -305,6 +523,13 @@ export default function App() {
           </button>
           <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
             Compare
+          </button>
+          <button
+            type="button"
+            className={view === "regressions" ? "active" : ""}
+            onClick={() => setView("regressions")}
+          >
+            Regressions
           </button>
           <button type="button" className={view === "inventory" ? "active" : ""} onClick={() => setView("inventory")}>
             Inventory
@@ -362,7 +587,8 @@ export default function App() {
                 <h2>Watch the curves, not the chrome</h2>
                 <p>
                   Overview tiles stream sparklines from the published graph tree. Explore for full
-                  charts and source. Light and dark themes stick to your preference.
+                  charts and param overlays. Light and dark themes stick to your preference.
+                  Filters are preserved when you switch benchmarks.
                 </p>
               </div>
               <div className="kpi-row">
@@ -429,6 +655,7 @@ export default function App() {
                     <p>
                       <span className={`chip ${typeChip(bench.type)}`}>{bench.type}</span>{" "}
                       <span className="chip">{bench.unit}</span>
+                      {hasParams && <span className="chip">{combos.length} param series</span>}
                     </p>
                   </div>
                 </div>
@@ -447,6 +674,33 @@ export default function App() {
                     </label>
                   ))}
                 </div>
+
+                {hasParams && (
+                  <div className="card card-pad param-picker">
+                    <h3 style={{ margin: "0 0 0.55rem", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" }}>
+                      Param series (stable colors)
+                    </h3>
+                    <div className="param-chips">
+                      {combos.map((c) => {
+                        const on = activeParamSel.includes(c.index);
+                        const color = seriesColor(c.index);
+                        return (
+                          <button
+                            key={c.index}
+                            type="button"
+                            className={"param-chip" + (on ? " on" : "")}
+                            style={on ? { borderColor: color } : undefined}
+                            onClick={() => toggleParam(c.index)}
+                          >
+                            <span className="swatch" style={{ background: color }} />
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="stat-grid">
                   <div className="stat"><div className="k">Latest</div><div className="v">{stats.latest != null ? prettyUnit(stats.latest, unit) : "—"}</div></div>
                   <div className="stat"><div className="k">Min</div><div className="v">{stats.min != null ? prettyUnit(stats.min, unit) : "—"}</div></div>
@@ -455,12 +709,27 @@ export default function App() {
                 </div>
                 <div className="detail-grid">
                   <div className="card chart-card">
-                    {loadingGraph ? <p className="muted">Loading graph…</p> : <Chart x={series.x} y={series.y} unit={unit} />}
-                    {series.x.length > 0 && (
+                    {loadingGraph ? (
+                      <p className="muted">Loading graph…</p>
+                    ) : multiSeries.series.length > 0 ? (
+                      <Chart
+                        x={multiSeries.x}
+                        unit={unit}
+                        series={multiSeries.series.map((s) => ({
+                          label: s.label,
+                          y: s.y,
+                          color: s.color,
+                        }))}
+                        showLegend={multiSeries.series.length > 1}
+                      />
+                    ) : (
+                      <Chart x={series.x} y={series.y} unit={unit} />
+                    )}
+                    {multiSeries.x.length > 0 && (
                       <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.82rem" }}>
-                        last <code>{commitHash(index, series.x[series.x.length - 1])}</code>
+                        last <code>{commitHash(index, multiSeries.x[multiSeries.x.length - 1])}</code>
                         {index.show_commit_url && (
-                          <> · <a href={index.show_commit_url + commitHash(index, series.x[series.x.length - 1])} target="_blank" rel="noreferrer">open commit</a></>
+                          <> · <a href={index.show_commit_url + commitHash(index, multiSeries.x[multiSeries.x.length - 1])} target="_blank" rel="noreferrer">open commit</a></>
                         )}
                       </p>
                     )}
@@ -490,6 +759,9 @@ export default function App() {
                           <span className="chip" key={k}>{k}: {v}</span>
                         ))}
                       </div>
+                      <p className="muted" style={{ margin: "0.55rem 0 0", fontSize: "0.75rem" }}>
+                        Filters stay when you pick another benchmark. Shareable via URL hash.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -503,38 +775,60 @@ export default function App() {
         <div className="main">
           <div className="page-head">
             <div>
-              <h1>Pairwise compare</h1>
+              <h1>Compare</h1>
               <p>
-                Spyglass-style <strong>Before → After</strong> ratios over published graphs.
-                Same factor semantics as <code>asv compare</code> / asv-spyglass.
+                Spyglass-style ratios over published graphs — pair or{" "}
+                <strong>compare-many</strong> env columns from{" "}
+                <code>graph_param_list</code>. Same factor semantics as{" "}
+                <code>asv compare</code>.
               </p>
             </div>
             <div className="summary-pills">
-              {(() => {
-                const rows = buildPairRows(
-                  benches.map((b) => b.name),
-                  Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
-                  pairValsA,
-                  pairValsB,
-                  { factor, onlyChanged: false },
-                );
-                const nImp = rows.filter((r) => r.mark === "-").length;
-                const nReg = rows.filter((r) => r.mark === "+").length;
-                return (
-                  <>
-                    <span className="chip ok">{nImp} improved</span>
-                    <span className="chip bad">{nReg} regressed</span>
-                    <span className="chip">factor {factor}</span>
-                  </>
-                );
-              })()}
+              {pairMode === "env" && multiEnvVals.length >= 2 ? (
+                (() => {
+                  const rows = buildMultiEnvRows(
+                    benches.map((b) => b.name),
+                    Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                    multiEnvVals[0] || {},
+                    multiEnvVals.slice(1),
+                    { factor, onlyChanged: false },
+                  );
+                  const nReg = rows.filter((r) => r.contenders.some((c) => c.mark === "+")).length;
+                  const nImp = rows.filter((r) => r.contenders.some((c) => c.mark === "-")).length;
+                  return (
+                    <>
+                      <span className="chip ok">{nImp} improved</span>
+                      <span className="chip bad">{nReg} regressed</span>
+                      <span className="chip">{selectedEnvCols.length} envs</span>
+                      <span className="chip">factor {factor}</span>
+                    </>
+                  );
+                })()
+              ) : (
+                (() => {
+                  const rows = buildPairRows(
+                    benches.map((b) => b.name),
+                    Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                    pairValsA,
+                    pairValsB,
+                    { factor, onlyChanged: false },
+                  );
+                  return (
+                    <>
+                      <span className="chip ok">{rows.filter((r) => r.mark === "-").length} improved</span>
+                      <span className="chip bad">{rows.filter((r) => r.mark === "+").length} regressed</span>
+                      <span className="chip">factor {factor}</span>
+                    </>
+                  );
+                })()
+              )}
             </div>
           </div>
 
           <div className="card pair-toolbar">
             <div className="seg mode-seg">
               <button type="button" className={pairMode === "env" ? "active" : ""} onClick={() => setPairMode("env")}>
-                Env pair
+                Env columns
               </button>
               <button type="button" className={pairMode === "revision" ? "active" : ""} onClick={() => setPairMode("revision")}>
                 Revision pair
@@ -542,51 +836,38 @@ export default function App() {
             </div>
 
             {pairMode === "env" ? (
-              <>
-                <div className="pair-side before">
-                  <span className="tag">Before</span>
-                  {Object.entries(index.params).map(([key, values]) => (
-                    <label className="filter" key={"a-" + key}>
-                      <span>{key}</span>
-                      <select
-                        value={stateA[key] ?? values[0] ?? ""}
-                        onChange={(e) => setStateA((s) => ({ ...s, [key]: e.target.value }))}
+              <div className="env-multi">
+                <span className="tag">graph_param_list</span>
+                <div className="param-chips">
+                  {envColumns.map((col, idx) => {
+                    const on = envSel.includes(idx);
+                    const isBase = on && envSel[0] === idx;
+                    return (
+                      <button
+                        key={col.id}
+                        type="button"
+                        className={"param-chip" + (on ? " on" : "") + (isBase ? " base" : "")}
+                        onClick={() => toggleEnvColumn(idx)}
+                        title={isBase ? "Baseline column" : on ? "Contender" : "Add column"}
                       >
-                        {values.map((v) => (
-                          <option key={v} value={v}>{v}</option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
+                        {isBase ? "Baseline · " : on ? "· " : ""}
+                        {col.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="pair-arrow">→</div>
-                <div className="pair-side after">
-                  <span className="tag">After</span>
-                  {Object.entries(index.params).map(([key, values]) => (
-                    <label className="filter" key={"b-" + key}>
-                      <span>{key}</span>
-                      <select
-                        value={stateB[key] ?? values[0] ?? ""}
-                        onChange={(e) => setStateB((s) => ({ ...s, [key]: e.target.value }))}
-                      >
-                        {values.map((v) => (
-                          <option key={v} value={v}>{v}</option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-              </>
+                <p className="muted" style={{ margin: 0, fontSize: "0.75rem", width: "100%" }}>
+                  First selected env is the baseline; others are contender columns (ratio vs baseline).
+                  Click to toggle. Order follows selection order.
+                </p>
+              </div>
             ) : (
               <>
                 <div className="pair-side before">
                   <span className="tag">Before rev</span>
                   <label className="filter">
                     <span>revision</span>
-                    <select
-                      value={revA ?? ""}
-                      onChange={(e) => setRevA(Number(e.target.value))}
-                    >
+                    <select value={revA ?? ""} onChange={(e) => setRevA(Number(e.target.value))}>
                       {Object.keys(index.revision_to_hash)
                         .map(Number)
                         .sort((a, b) => a - b)
@@ -603,10 +884,7 @@ export default function App() {
                   <span className="tag">After rev</span>
                   <label className="filter">
                     <span>revision</span>
-                    <select
-                      value={revB ?? ""}
-                      onChange={(e) => setRevB(Number(e.target.value))}
-                    >
+                    <select value={revB ?? ""} onChange={(e) => setRevB(Number(e.target.value))}>
                       {Object.keys(index.revision_to_hash)
                         .map(Number)
                         .sort((a, b) => a - b)
@@ -667,80 +945,131 @@ export default function App() {
           </div>
 
           {pairLoading ? (
-            <p className="muted">Loading pairwise series…</p>
+            <p className="muted">Loading compare series…</p>
           ) : (
             <>
               <div className="card card-pad" style={{ overflow: "auto", marginBottom: "0.9rem" }}>
-                <table className="compare-table">
-                  <thead>
-                    <tr>
-                      <th>Change</th>
-                      <th>Before</th>
-                      <th>After</th>
-                      <th>Ratio</th>
-                      <th>Benchmark</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buildPairRows(
-                      benches.map((b) => b.name),
-                      Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
-                      pairValsA,
-                      pairValsB,
-                      { factor, onlyChanged, sort: sortPair },
-                    ).map((row: PairRow) => (
-                      <tr
-                        key={row.name}
-                        className={
-                          "row-" +
-                          row.color +
-                          (selected === row.name ? " selected" : "")
-                        }
-                        onClick={() => {
-                          setSelected(row.name);
-                          if (pairMode === "env") {
-                            // keep dual series visible under table
-                          }
-                        }}
-                      >
-                        <td className="mark">{row.mark}</td>
-                        <td className="mono">
-                          {row.before != null ? prettyUnit(row.before, row.unit) : "n/a"}
-                        </td>
-                        <td className="mono">
-                          {row.after != null ? prettyUnit(row.after, row.unit) : "n/a"}
-                        </td>
-                        <td className="mono">
-                          {row.ratio != null ? row.ratio.toFixed(2) : "n/a"}
-                        </td>
-                        <td>
-                          <span className="mono">{row.name}</span>{" "}
-                          <span className={`chip ${typeChip(row.type)}`}>{row.type}</span>
-                        </td>
+                {pairMode === "env" && selectedEnvCols.length >= 1 ? (
+                  <table className="compare-table">
+                    <thead>
+                      <tr>
+                        <th>Benchmark</th>
+                        <th>Baseline{selectedEnvCols[0] ? ` (${selectedEnvCols[0].label})` : ""}</th>
+                        {selectedEnvCols.slice(1).map((col) => (
+                          <th key={col.id}>{col.label} (Ratio)</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {multiRows.map((row) => {
+                        const worst = row.contenders.reduce<"green" | "red" | "default" | "grey">(
+                          (acc, c) => {
+                            if (c.color === "red") return "red";
+                            if (acc === "red") return acc;
+                            if (c.color === "green") return "green";
+                            return acc;
+                          },
+                          "default",
+                        );
+                        return (
+                          <tr
+                            key={row.name}
+                            className={"row-" + worst + (selected === row.name ? " selected" : "")}
+                            onClick={() => setSelected(row.name)}
+                          >
+                            <td>
+                              <span className="mono">{row.name}</span>{" "}
+                              <span className={`chip ${typeChip(row.type)}`}>{row.type}</span>
+                            </td>
+                            <td className="mono">
+                              {row.baseline != null ? prettyUnit(row.baseline, row.unit) : "n/a"}
+                            </td>
+                            {row.contenders.map((c, i) => (
+                              <td key={i} className={"mono cell-" + c.color}>
+                                {c.value != null ? prettyUnit(c.value, row.unit) : "n/a"}
+                                {" "}
+                                <span className="mark">({c.mark}{c.ratio != null ? c.ratio.toFixed(2) : "n/a"})</span>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="compare-table">
+                    <thead>
+                      <tr>
+                        <th>Change</th>
+                        <th>Before</th>
+                        <th>After</th>
+                        <th>Ratio</th>
+                        <th>Benchmark</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buildPairRows(
+                        benches.map((b) => b.name),
+                        Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                        pairValsA,
+                        pairValsB,
+                        { factor, onlyChanged, sort: sortPair },
+                      ).map((row: PairRow) => (
+                        <tr
+                          key={row.name}
+                          className={"row-" + row.color + (selected === row.name ? " selected" : "")}
+                          onClick={() => setSelected(row.name)}
+                        >
+                          <td className="mark">{row.mark}</td>
+                          <td className="mono">
+                            {row.before != null ? prettyUnit(row.before, row.unit) : "n/a"}
+                          </td>
+                          <td className="mono">
+                            {row.after != null ? prettyUnit(row.after, row.unit) : "n/a"}
+                          </td>
+                          <td className="mono">
+                            {row.ratio != null ? row.ratio.toFixed(2) : "n/a"}
+                          </td>
+                          <td>
+                            <span className="mono">{row.name}</span>{" "}
+                            <span className={`chip ${typeChip(row.type)}`}>{row.type}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
-              {selected && pairMode === "env" && (
+              {selected && pairMode === "env" && selectedEnvCols.length >= 2 && (
                 <div className="card chart-card">
                   <h2 style={{ margin: "0.25rem 0 0.75rem" }}>
                     Overlay · <span className="mono">{selected}</span>
                   </h2>
                   <PairOverlay
                     name={selected}
-                    stateA={stateA}
-                    stateB={stateB}
+                    stateA={selectedEnvCols[0].state}
+                    stateB={selectedEnvCols[1].state}
                     unit={index.benchmarks[selected]?.unit || "seconds"}
-                    labelA={Object.values(stateA).join(" / ")}
-                    labelB={Object.values(stateB).join(" / ")}
+                    labelA={selectedEnvCols[0].label}
+                    labelB={selectedEnvCols[1].label}
                   />
                 </div>
               )}
             </>
           )}
         </div>
+      )}
+
+      {view === "regressions" && (
+        <RegressionsView
+          index={index}
+          entries={regressions}
+          missing={regMissing}
+          factor={regFactor}
+          setFactor={setRegFactor}
+          onOpen={openFromRegression}
+        />
       )}
 
       {view === "inventory" && (
