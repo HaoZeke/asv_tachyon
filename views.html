@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="teal" data-content_root="./">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Views - asv-tachyon</title><link rel="shortcut icon" href="_static/favicon.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Usage" href="usage.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Views - asv-tachyon</title><link rel="shortcut icon" href="_static/favicon.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Data contract" href="data-contract.html" /><link rel="prev" title="Usage" href="usage.html" />
       <link rel="canonical" href="https://haozeke.github.io/asv_tachyon/views.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
@@ -65,6 +65,7 @@ data-aria-dark="Switch to auto color mode">
         <div class="globaltoc" data-expand-depth="1"><ul class="current">
 <li class="toctree-l1 _expand"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Views</a></li>
+<li class="toctree-l1 _expand"><a class="reference internal" href="data-contract.html">Data contract</a></li>
 </ul>
         </div>
       </div>
@@ -77,7 +78,9 @@ data-aria-dark="Switch to auto color mode">
     </button>
     <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
 <li><a class="reference internal" href="#overview">Overview</a></li>
+<li><a class="reference internal" href="#explore">Explore</a></li>
 <li><a class="reference internal" href="#compare">Compare</a></li>
+<li><a class="reference internal" href="#regressions">Regressions</a></li>
 <li><a class="reference internal" href="#inventory">Inventory</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
@@ -118,18 +121,34 @@ data-aria-dark="Switch to auto color mode">
 <a class="hero-shot reference internal image-reference" href="_images/overview.jpg"><img alt="Overview view" class="hero-shot" src="_images/overview.jpg" style="width: 100%;" />
 </a>
 </section>
+<section id="explore">
+<h2>Explore<a class="headerlink" href="#explore" title="Link to this heading">#</a></h2>
+<p>Full uPlot series for a single benchmark. Env filters (machine, branch, python,
+…) are <strong>preserved</strong> when switching benchmarks; the URL hash records view,
+selected bench, and filters for shareable links.</p>
+<p>When a benchmark declares <code class="docutils literal notranslate"><span class="pre">params</span></code>, each flat param combination is a separate
+series with a <strong>stable color</strong> (hiding a series does not reshuffle the palette).
+Toggle series from the param chip row.</p>
+</section>
 <section id="compare">
 <h2>Compare<a class="headerlink" href="#compare" title="Link to this heading">#</a></h2>
-<p>Spyglass-style pairwise table: <strong>Change · Before · After · Ratio · Benchmark</strong>.
-Modes:</p>
+<p>Spyglass-style ratios with the same factor semantics as <code class="docutils literal notranslate"><span class="pre">asv</span> <span class="pre">compare</span></code> /
+asv-spyglass <code class="docutils literal notranslate"><span class="pre">compare-many</span></code>. Modes:</p>
 <ul class="simple">
-<li><p><strong>Env pair</strong> — two selector states (e.g. python 3.12 vs 3.13)</p></li>
+<li><p><strong>Env columns</strong> — select N entries from <code class="docutils literal notranslate"><span class="pre">graph_param_list</span></code> (first selected
+is the baseline; each further env is a contender column with value + ratio)</p></li>
 <li><p><strong>Revision pair</strong> — two commits on one env surface</p></li>
 </ul>
-<p>Factor default is <code class="docutils literal notranslate"><span class="pre">1.1</span></code> (same idea as <code class="docutils literal notranslate"><span class="pre">asv</span> <span class="pre">compare</span></code>). Click a row for an
-overlay chart of both series.</p>
+<p>Factor default is <code class="docutils literal notranslate"><span class="pre">1.1</span></code>. Click a row for an overlay chart of the first two
+env series.</p>
 <a class="hero-shot reference internal image-reference" href="_images/compare.jpg"><img alt="Compare view" class="hero-shot" src="_images/compare.jpg" style="width: 100%;" />
 </a>
+</section>
+<section id="regressions">
+<h2>Regressions<a class="headerlink" href="#regressions" title="Link to this heading">#</a></h2>
+<p>Loads optional <code class="docutils literal notranslate"><span class="pre">regressions.json</span></code> (same 7-tuple feed as the stock ASV site).
+Factor slider / number input filters rows by <code class="docutils literal notranslate"><span class="pre">last/best</span></code>. Click a row to open
+Explore with the env filters and param index applied.</p>
 </section>
 <section id="inventory">
 <h2>Inventory<a class="headerlink" href="#inventory" title="Link to this heading">#</a></h2>
@@ -161,6 +180,14 @@ requirements matrix</p></li>
       <div class="page-info">
         <span>Previous</span><div class="title">Usage</div></div>
     </a>
+  </div><div class="navigation-next">
+    <a href="data-contract.html">
+      <div class="page-info">
+        <span>Next</span>
+        <div class="title">Data contract</div>
+      </div>
+      <i class="i-lucide chevron-right"></i>
+    </a>
   </div></div></div>
     </div>
   </main>
@@ -185,7 +212,7 @@ requirements matrix</p></li>
     </div>
   </div>
 </footer>
-      <script src="_static/documentation_options.js?v=8c7df3da"></script>
+      <script src="_static/documentation_options.js?v=757451c5"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/shibuya.js?v=50760d75"></script></body>
