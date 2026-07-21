@@ -58,6 +58,7 @@ Views
 * **Explore** — full uPlot series, recent points, source snippet
 * **Compare** — pairwise ratios with the same factor semantics as
   ``asv compare`` / asv-spyglass (env or revision pairs)
+* **Regressions** — ``regressions.json`` table with interactive factor threshold
 * **Inventory** — added / removed / version-bumped over published params
   or two dropped ASV result JSON files (same classify as
   ``asv-spyglass env-diff``)
@@ -81,6 +82,7 @@ Tool                  Job
 
    usage
    views
+   data-contract
 
 Indices
 -------

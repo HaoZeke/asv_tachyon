@@ -73,12 +73,18 @@ asv-tachyon serve fixtures/sample_site --open
 ## What you get
 
 - **Overview** — fluid sparkline atlas, search, light/dark themes
-- **Explore** — full uPlot series, recent points, source snippet
-- **Compare** — pairwise Before/After/Ratio (same factor semantics as
-  `asv compare` / asv-spyglass), env or revision pairs, overlay chart
+- **Explore** — full uPlot series, param multi-series overlays with stable
+  colors, filters preserved across benchmark switches (URL hash shareable)
+- **Compare** — multi-env compare-many columns from `graph_param_list`, or
+  revision pairs (same factor semantics as `asv compare` / asv-spyglass)
+- **Regressions** — `regressions.json` table with interactive factor threshold
 - **Inventory** — SBOM-style env lock diffs (added / removed / version-bumped)
   over published `params` + machines, or by dropping two raw result JSON files
-- Same data contract as the stock ASV site — works with existing published trees
+- Self-hosted fonts (offline-safe; no Google Fonts CDN)
+- Same data contract as the stock ASV site — see
+  [docs/source/data-contract.rst](docs/source/data-contract.rst) for
+  `index.json` + `graphs/**` + `regressions.json` shapes (adapters /
+  pytest-benchmark exporters)
 
 ## Development
 
