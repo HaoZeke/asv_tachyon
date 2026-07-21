@@ -62,3 +62,5 @@ src/asv_tachyon/_version.py
 # built assets generated before release
 # web/dist is force-included in wheel when present
 web/node_modules/
+
+.venv-docs/

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Docs site and README gallery with live asv-tachyon screenshots (Overview,
+  Compare, Inventory). Sphinx + Shibuya landing under ``docs/source/``.
+
 ## 0.3.0
 
 - **Inventory** view: SBOM-style environment lock diffs (added / removed /

@@ -20,13 +20,19 @@ classifiers = [
 [project.urls]
 Source = "https://github.com/HaoZeke/asv_tachyon"
 Issues = "https://github.com/HaoZeke/asv_tachyon/issues"
-Documentation = "https://github.com/HaoZeke/asv_tachyon#readme"
+Documentation = "https://haozeke.github.io/asv_tachyon/"
 
 [project.scripts]
 asv-tachyon = "asv_tachyon.cli:main"
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
+docs = [
+    "sphinx>=8.0",
+    "shibuya>=2024.1",
+    "sphinx-sitemap>=2.5",
+]
+
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -49,6 +55,9 @@ include = [
   "/README.md",
   "/LICENSE",
   "/CHANGELOG.md",
+  "/docs/images",
+  "/docs/source",
+  "/branding",
 ]
 
 [tool.pytest.ini_options]
