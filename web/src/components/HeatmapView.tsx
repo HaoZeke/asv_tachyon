@@ -4,7 +4,9 @@ import {
   type BenchmarkInfo,
   commitHash,
   graphToPath,
+  isHigherBetter,
   loadGraph,
+  ratioHeatColor,
   scalarSeries,
 } from "../lib/asv";
 import { EmptyState } from "./EmptyState";
@@ -57,15 +59,6 @@ export function HeatmapView({ index, benches, state, lastN = 12, onOpen }: Props
     };
   }, [benches, state, revs]);
 
-  function ratioColor(ratio: number | null): string {
-    if (ratio == null || !Number.isFinite(ratio)) return "transparent";
-    // ratio > 1 = slower (red), < 1 = faster (green)
-    if (ratio >= 1.2) return "color-mix(in oklab, var(--danger) 55%, transparent)";
-    if (ratio >= 1.05) return "color-mix(in oklab, var(--danger) 28%, transparent)";
-    if (ratio <= 0.8) return "color-mix(in oklab, var(--ok) 55%, transparent)";
-    if (ratio <= 0.95) return "color-mix(in oklab, var(--ok) 28%, transparent)";
-    return "color-mix(in oklab, var(--text-faint) 8%, transparent)";
-  }
 
   if (!benches.length) return <EmptyState kind="no-benches" />;
 
@@ -75,8 +68,8 @@ export function HeatmapView({ index, benches, state, lastN = 12, onOpen }: Props
         <div>
           <h1>What regressed</h1>
           <p>
-            Heatmap of value ratio vs the previous revision (last {lastN}). Red = slower,
-            green = faster. Click a row to open Explore.
+            Heatmap of value ratio vs the previous measured revision (last {lastN}).
+            Color respects higher-is-better. Click a row to open Explore.
           </p>
         </div>
       </div>
@@ -98,22 +91,30 @@ export function HeatmapView({ index, benches, state, lastN = 12, onOpen }: Props
             <tbody>
               {benches.map((b) => {
                 const row = matrix[b.name] || {};
+                const hib = isHigherBetter(b);
                 return (
                   <tr key={b.name} onClick={() => onOpen(b.name)} className="heatmap-row">
                     <td className="mono">{b.name}</td>
                     {revs.map((r, i) => {
                       const cur = row[r];
-                      const prevRev = i > 0 ? revs[i - 1] : null;
-                      const prev = prevRev != null ? row[prevRev] : null;
+                      // Walk back to last measured datapoint (not empty column)
+                      let prev: number | null = null;
+                      for (let j = i - 1; j >= 0; j--) {
+                        const v = row[revs[j]];
+                        if (v != null) {
+                          prev = v;
+                          break;
+                        }
+                      }
                       const ratio =
                         cur != null && prev != null && prev !== 0 ? cur / prev : null;
                       return (
                         <td
                           key={r}
-                          style={{ background: ratioColor(ratio) }}
+                          style={{ background: ratioHeatColor(ratio, hib) }}
                           title={
                             ratio != null
-                              ? `${b.name} @ ${r}: ${ratio.toFixed(3)}× vs prev`
+                              ? `${b.name} @ ${r}: ${ratio.toFixed(3)}x vs prev measured`
                               : `${b.name} @ ${r}: n/a`
                           }
                         >

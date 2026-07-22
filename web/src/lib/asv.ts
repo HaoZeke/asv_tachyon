@@ -121,6 +121,33 @@ export function richSeries(points: GraphPoint[]): RichSeries {
 }
 
 /** True when larger measured values are better (ops/s, track counts, …). */
+/** CSS class for a relative change: positive change means "up". */
+export function deltaClass(
+  change: number | null | undefined,
+  higherIsBetter: boolean,
+  threshold = 0.05,
+): string {
+  if (change == null || !Number.isFinite(change)) return "muted";
+  if (Math.abs(change) < threshold) return "muted";
+  const good = higherIsBetter ? change > 0 : change < 0;
+  return good ? "delta-down" : "delta-up";
+}
+
+/** Ratio coloring: ratio = after/before. For lower-is-better, ratio>1 is bad. */
+export function ratioHeatColor(
+  ratio: number | null,
+  higherIsBetter: boolean,
+): string {
+  if (ratio == null || !Number.isFinite(ratio)) return "transparent";
+  // Flip interpretation when higher is better: ratio>1 is improvement
+  const r = higherIsBetter ? 1 / ratio : ratio;
+  if (r >= 1.2) return "color-mix(in oklab, var(--danger) 55%, transparent)";
+  if (r >= 1.05) return "color-mix(in oklab, var(--danger) 28%, transparent)";
+  if (r <= 0.8) return "color-mix(in oklab, var(--ok) 55%, transparent)";
+  if (r <= 0.95) return "color-mix(in oklab, var(--ok) 28%, transparent)";
+  return "color-mix(in oklab, var(--text-faint) 8%, transparent)";
+}
+
 export function isHigherBetter(bench: Pick<BenchmarkInfo, "type" | "unit" | "less_is_better">): boolean {
   if (bench.less_is_better === false) return true;
   if (bench.less_is_better === true) return false;

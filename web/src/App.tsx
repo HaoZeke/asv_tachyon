@@ -19,6 +19,7 @@ import {
   fullCommitHash,
   graphParamStates,
   graphToPath,
+  deltaClass,
   isHigherBetter,
   loadGraph,
   loadIndex,
@@ -937,7 +938,7 @@ export default function App() {
                   <div className="stat"><div className="k">Latest</div><div className="v">{stats.latest != null ? prettyUnit(stats.latest, unit) : "—"}</div></div>
                   <div className="stat"><div className="k">Min</div><div className="v">{stats.min != null ? prettyUnit(stats.min, unit) : "—"}</div></div>
                   <div className="stat"><div className="k">Max</div><div className="v">{stats.max != null ? prettyUnit(stats.max, unit) : "—"}</div></div>
-                  <div className="stat"><div className="k">Δ first→last</div><div className={"v " + (stats.change != null && stats.change > 0.05 ? "delta-up" : stats.change != null && stats.change < -0.05 ? "delta-down" : "")}>{stats.change != null ? `${(stats.change * 100).toFixed(1)}%` : "—"}</div></div>
+                  <div className="stat"><div className="k">Δ first→last</div><div className={"v " + (bench ? deltaClass(stats.change, isHigherBetter(bench)) : "")}>{stats.change != null ? `${(stats.change * 100).toFixed(1)}%` : "—"}</div></div>
                 </div>
                 <div className="detail-grid">
                   <div>

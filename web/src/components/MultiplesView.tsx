@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import {
   type AsvIndex,
   type BenchmarkInfo,
+  deltaClass,
   downsample,
   graphToPath,
+  isHigherBetter,
   loadGraph,
   prettyUnit,
   scalarSeries,
@@ -105,8 +107,8 @@ export function MultiplesView({
                       ? prettyUnit(st.latest, b.unit)
                       : "—"}
                   </span>
-                  {st.change != null && (
-                    <span className={st.change > 0.05 ? "delta-up" : st.change < -0.05 ? "delta-down" : "muted"}>
+                  {st.change != null && b && (
+                    <span className={deltaClass(st.change, isHigherBetter(b))}>
                       {(st.change * 100).toFixed(1)}%
                     </span>
                   )}

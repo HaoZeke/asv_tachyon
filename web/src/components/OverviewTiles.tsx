@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BenchmarkInfo } from "../lib/asv";
-import { prettyUnit, seriesStats } from "../lib/asv";
+import { deltaClass, isHigherBetter, prettyUnit, seriesStats } from "../lib/asv";
 import { Sparkline } from "./Chart";
 
 function typeChip(t: string) {
@@ -110,15 +110,7 @@ export function OverviewTiles({
             <div className="foot">
               <span>{st.latest != null ? prettyUnit(st.latest, b.unit) : "—"}</span>
               {delta && (
-                <span
-                  className={
-                    st.change! > 0.05
-                      ? "delta-up"
-                      : st.change! < -0.05
-                        ? "delta-down"
-                        : "muted"
-                  }
-                >
+                <span className={deltaClass(st.change, isHigherBetter(b))}>
                   {delta}
                 </span>
               )}

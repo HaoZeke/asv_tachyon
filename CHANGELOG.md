@@ -1,3 +1,11 @@
+## 0.5.1
+
+- Fix pytest-benchmark adapter `fullname` field
+- Higher-is-better coloring on Heatmap, Overview, Multiples, Explore delta
+- Heatmap walks back to last measured revision (not empty columns)
+- Sample fixture graphs include `{v, lo, hi, samples}` for demo distributions
+- Published mute list merge (`regressions-ignore.json`)
+
 ## 0.5.0
 
 - Statistical depth: violin/strip/KDE distribution panel, mean/median/MAD, sample CI bands
