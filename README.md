@@ -72,19 +72,53 @@ asv-tachyon serve fixtures/sample_site --open
 
 ## What you get
 
-- **Overview** — fluid sparkline atlas, search, light/dark themes
-- **Explore** — full uPlot series, param multi-series overlays with stable
-  colors, filters preserved across benchmark switches (URL hash shareable)
+- **Overview** — virtualized sparkline atlas, type/machine filter chips with
+  counts, only-regressed filter, light/dark themes
+- **Explore** — uPlot with CI bands, brush zoom, dual-cursor delta, tag
+  markers, commit tooltips (`commits.json`), distribution violin/strip when
+  samples exist, Report subview, multi-machine overlay, profile link
+  (`profiles.json`)
+- **Heatmap** — last-N revision ratios ("what regressed"); click opens Explore
+- **Grid** — multi-param summary table at latest revision
+- **Multiples** — small-multiples sparkline wall
 - **Compare** — multi-env compare-many columns from `graph_param_list`, or
   revision pairs (same factor semantics as `asv compare` / asv-spyglass)
-- **Regressions** — `regressions.json` table with interactive factor threshold
+- **Regressions** — `regressions.json` table with factor threshold + mute list
+  (`localStorage` key `asv-tachyon-mute`)
 - **Inventory** — SBOM-style env lock diffs (added / removed / version-bumped)
-  over published `params` + machines, or by dropping two raw result JSON files
+- **Copy deep link** — copies `location.href` including hash filters
+- **Print / PDF** — print CSS for Compare / Inventory / Explore
+- Throughput / higher-is-better when `type` is `track`, unit contains `ops`,
+  or `less_is_better: false` in benchmark meta
 - Self-hosted fonts (offline-safe; no Google Fonts CDN)
 - Same data contract as the stock ASV site — see
   [docs/source/data-contract.rst](docs/source/data-contract.rst) for
-  `index.json` + `graphs/**` + `regressions.json` shapes (adapters /
-  pytest-benchmark exporters)
+  `index.json` + `graphs/**` + `regressions.json` shapes
+
+### Optional sidecars (static)
+
+| File | Role |
+|------|------|
+| `commits.json` | `{ "<fullhash>": "subject" }` or `{ "by_revision": { "12": "msg" } }` for chart tooltips |
+| `profiles.json` | `{ "paths": { "<bench>@<rev>": "profiles/foo.html" } }` — Explore "Open profile" |
+| Extended graph points | `[rev, { "v", "lo"?, "hi"?, "samples"? }]` for CI bands + distribution |
+| `samples/<same path as graph>` | sibling `{ "revision": [samples...] }` if not inlined |
+
+### Adapters
+
+Import foreign benchmark JSON into a minimal ASV html tree:
+
+```bash
+python adapters/criterion_to_asv.py path/to/target/criterion -o asv_html
+python adapters/pytest_benchmark_to_asv.py bench.json -o asv_html
+asv-tachyon serve asv_html --open
+```
+
+### CI template
+
+See [docs/workflows/asv-studio.yml](docs/workflows/asv-studio.yml) for a
+commented GitHub Actions outline: `asv publish` → `asv-tachyon install` →
+Pages; PR path with asv-perch / asv-spyglass; local spyglass recipe.
 
 ## Development
 
