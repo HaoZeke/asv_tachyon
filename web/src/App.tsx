@@ -789,11 +789,15 @@ export default function App() {
           <div className="bento" style={{ marginTop: "0.85rem" }}>
             <div className="card hero fade-in">
               <div>
-                <h2>Watch the curves, not the chrome</h2>
-                <p>
-                  Overview tiles stream sparklines from the published graph tree. Explore for full
-                  charts, distributions, and param overlays. Copy deep link shares the hash.
-                  Filters are preserved when you switch benchmarks.
+                <h2>{index.project || "Overview"}</h2>
+                <p className="muted" style={{ margin: 0 }}>
+                  {benches.length} benchmarks
+                  {Object.keys(index.tags || {}).length
+                    ? ` · ${Object.keys(index.tags || {}).length} tags`
+                    : ""}
+                  {Object.keys(index.machines || {}).length
+                    ? ` · ${Object.keys(index.machines || {}).length} machines`
+                    : ""}
                 </p>
               </div>
               <div className="kpi-row">
