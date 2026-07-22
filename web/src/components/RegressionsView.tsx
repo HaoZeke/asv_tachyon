@@ -6,6 +6,7 @@ import {
   jumpFactor,
   prettyUnit,
 } from "../lib/asv";
+import { EmptyState } from "./EmptyState";
 
 function typeChip(t: string) {
   const k = t.toLowerCase();
@@ -21,6 +22,10 @@ export function RegressionsView({
   factor,
   setFactor,
   onOpen,
+  muteList,
+  onToggleMute,
+  showMuted,
+  setShowMuted,
 }: {
   index: AsvIndex;
   entries: RegressionEntry[];
@@ -29,13 +34,20 @@ export function RegressionsView({
   factor: number;
   setFactor: (f: number) => void;
   onOpen: (bench: string, filters: Record<string, string>, paramIdx: number | null) => void;
+  muteList: string[];
+  onToggleMute: (bench: string) => void;
+  showMuted: boolean;
+  setShowMuted: (v: boolean) => void;
 }) {
+  const mutedSet = useMemo(() => new Set(muteList), [muteList]);
+
   const filtered = useMemo(() => {
     return entries
       .filter((e) => e.factor >= factor)
+      .filter((e) => showMuted || !mutedSet.has(e.benchmarkBase))
       .slice()
       .sort((a, b) => b.factor - a.factor || a.name.localeCompare(b.name));
-  }, [entries, factor]);
+  }, [entries, factor, mutedSet, showMuted]);
 
   return (
     <div className="main">
@@ -44,13 +56,15 @@ export function RegressionsView({
           <h1>Regressions</h1>
           <p>
             From published <code>regressions.json</code> (same feed as the stock ASV site).
-            Raise the factor to keep only larger last/best degradations.
+            Raise the factor to keep only larger last/best degradations. Mute hides names
+            via localStorage key <code>asv-tachyon-mute</code>.
           </p>
         </div>
         <div className="summary-pills">
           <span className="chip bad">{filtered.length} shown</span>
           <span className="chip">{entries.length} total</span>
           <span className="chip">factor ≥ {factor}</span>
+          {muteList.length > 0 && <span className="chip">{muteList.length} muted</span>}
         </div>
       </div>
 
@@ -76,18 +90,20 @@ export function RegressionsView({
             onChange={(e) => setFactor(Number(e.target.value) || 1.1)}
           />
         </label>
+        <label className="chk">
+          <input
+            type="checkbox"
+            checked={showMuted}
+            onChange={(e) => setShowMuted(e.target.checked)}
+          />
+          show muted
+        </label>
         <p className="muted" style={{ margin: 0, fontSize: "0.82rem", alignSelf: "center" }}>
           Keep entries where last/best ≥ threshold (ASV-style magnitude).
         </p>
       </div>
 
-      {missing && (
-        <div className="empty muted">
-          No <code>regressions.json</code> beside this site. Run{" "}
-          <code>asv publish</code> (with the regressions publisher enabled) to
-          generate one, or drop a fixture at the html root.
-        </div>
-      )}
+      {missing && <EmptyState kind="no-regressions" />}
 
       {!missing && entries.length === 0 && (
         <div className="empty muted">regressions.json loaded but contained no rows.</div>
@@ -95,7 +111,8 @@ export function RegressionsView({
 
       {!missing && entries.length > 0 && filtered.length === 0 && (
         <div className="empty muted">
-          No regressions at factor ≥ {factor}. Lower the threshold to see more.
+          No regressions at factor ≥ {factor}
+          {!showMuted && muteList.length ? " (some muted)" : ""}. Lower the threshold or show muted.
         </div>
       )}
 
@@ -111,6 +128,7 @@ export function RegressionsView({
                 <th>Last</th>
                 <th>Jump</th>
                 <th>Commits</th>
+                <th>Mute</th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +144,11 @@ export function RegressionsView({
                 for (const [k, v] of Object.entries(e.graphParams)) {
                   if (v != null) filters[k] = String(v);
                 }
+                const muted = mutedSet.has(e.benchmarkBase);
                 return (
                   <tr
                     key={e.name + JSON.stringify(e.graphParams) + String(e.paramIdx)}
-                    className="row-red"
+                    className={"row-red" + (muted ? " row-muted" : "")}
                     onClick={() => onOpen(e.benchmarkBase, filters, e.paramIdx)}
                     title="Open in Explore"
                   >
@@ -162,6 +181,18 @@ export function RegressionsView({
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          onToggleMute(e.benchmarkBase);
+                        }}
+                      >
+                        {muted ? "Unmute" : "Mute"}
+                      </button>
                     </td>
                   </tr>
                 );
