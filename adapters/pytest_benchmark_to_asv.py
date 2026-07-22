@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
 
     benchmarks: dict = {}
     for b in benchmarks_raw:
-        name = str(b.get("fullnamename") or b.get("name") or "bench")
+        name = str(b.get("fullname") or b.get("name") or "bench")
         safe = _sanitize(name)
         stats = b.get("stats") or {}
         # pytest-benchmark times are seconds
