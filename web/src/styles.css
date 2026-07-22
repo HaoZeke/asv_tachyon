@@ -566,6 +566,24 @@ code, .mono { font-family: var(--mono); }
 }
 .summary-pills { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.85rem; }
 
+/* chart tag density control */
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+}
+.chart-tag-mode {
+  min-width: 7.5rem;
+}
+.chart-tag-hint {
+  font-size: 0.75rem;
+  padding-bottom: 0.35rem;
+}
+
 /* —— inventory / SBOM-style env diff —— */
 .chip.warn {
   color: var(--warn);

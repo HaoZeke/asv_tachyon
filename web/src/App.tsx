@@ -45,7 +45,11 @@ import {
   saveMuteList,
   toggleMute,
 } from "./lib/mute";
-import { Chart } from "./components/Chart";
+import {
+  Chart,
+  TAG_DISPLAY_MODES,
+  type TagDisplayMode,
+} from "./components/Chart";
 import { InventoryView } from "./components/InventoryView";
 import { RegressionsView } from "./components/RegressionsView";
 import { DistributionPanel } from "./components/DistributionPanel";
@@ -188,6 +192,11 @@ export default function App() {
   const [exploreSub, setExploreSub] = useState<"chart" | "report">("chart");
   const [muteList, setMuteList] = useState<string[]>(() => loadMuteList());
   const [showMuted, setShowMuted] = useState(false);
+  const [tagMode, setTagMode] = useState<TagDisplayMode>(() => {
+    const s = localStorage.getItem("asv-tachyon-tag-mode");
+    if (s && TAG_DISPLAY_MODES.some((m) => m.id === s)) return s as TagDisplayMode;
+    return "auto";
+  });
   const [multiplesSel, setMultiplesSel] = useState<string[]>([]);
   const [regressedNames, setRegressedNames] = useState<Set<string>>(new Set());
 
@@ -195,6 +204,10 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("asv-tachyon-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("asv-tachyon-tag-mode", tagMode);
+  }, [tagMode]);
 
   // Initial load
   useEffect(() => {
@@ -956,6 +969,7 @@ export default function App() {
                           lo={rich?.lo}
                           hi={rich?.hi}
                           tags={tags}
+                          tagMode={tagMode}
                           formatRev={(rev) => commitHash(index, rev)}
                           commitMessage={(rev) =>
                             commitMessage(commits, rev, fullCommitHash(index, rev))
@@ -965,6 +979,27 @@ export default function App() {
                           brushZoom
                           dualCursor
                         />
+                      )}
+                      {chartX.length > 0 && (
+                        <div className="chart-toolbar">
+                          <label className="filter chart-tag-mode" title={TAG_DISPLAY_MODES.find((m) => m.id === tagMode)?.hint}>
+                            <span>Tags</span>
+                            <select
+                              value={tagMode}
+                              onChange={(e) => setTagMode(e.target.value as TagDisplayMode)}
+                            >
+                              {TAG_DISPLAY_MODES.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <span className="muted chart-tag-hint">
+                            {TAG_DISPLAY_MODES.find((m) => m.id === tagMode)?.hint}
+                            {tags.length > 0 ? ` · ${tags.length} tags` : ""}
+                          </span>
+                        </div>
                       )}
                       {chartX.length > 0 && (
                         <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.82rem" }}>

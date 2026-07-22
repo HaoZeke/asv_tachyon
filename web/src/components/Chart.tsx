@@ -16,6 +16,22 @@ export type ChartSeries = {
 
 export type TagMarker = { name: string; revision: number };
 
+/** How release tags are drawn on the chart. */
+export type TagDisplayMode =
+  | "auto" // thin labels, prefer stables (default)
+  | "stables" // lines for all in range; labels only stable releases
+  | "all" // label everything (can crowd dense histories)
+  | "lines" // verticals only, no text
+  | "off"; // nothing
+
+export const TAG_DISPLAY_MODES: { id: TagDisplayMode; label: string; hint: string }[] = [
+  { id: "auto", label: "Auto", hint: "Thin labels, prefer stable releases" },
+  { id: "stables", label: "Stables", hint: "Label final releases only" },
+  { id: "all", label: "All", hint: "Every tag (dense histories get crowded)" },
+  { id: "lines", label: "Lines", hint: "Vertical guides, no text" },
+  { id: "off", label: "Off", hint: "Hide tags" },
+];
+
 export type CursorInfo = {
   rev: number;
   hash?: string;
@@ -41,6 +57,10 @@ type Props = {
   hi?: (number | null)[];
   /** Tag markers on x-axis */
   tags?: TagMarker[];
+  /** Tag label density / filter (default auto) */
+  tagMode?: TagDisplayMode;
+  /** Min pixel gap between labels when thinning (default 52) */
+  tagLabelMinPx?: number;
   /** Resolve commit label for revision */
   formatRev?: (rev: number) => string;
   /** Optional commit message for tooltip */
@@ -122,20 +142,22 @@ function shortTagLabel(name: string): string {
 }
 
 /**
- * Draw all tag verticals; label only a non-colliding subset (min px gap).
- * Re-runs on zoom so denser labels appear when the range shrinks.
+ * Draw tag verticals / labels according to TagDisplayMode.
+ * Re-runs on zoom so denser labels appear when the range shrinks (auto/all).
  */
-function tagsPlugin(tags: TagMarker[]): uPlot.Plugin {
-  const MIN_LABEL_PX = 52;
-
+function tagsPlugin(
+  tags: TagMarker[],
+  mode: TagDisplayMode,
+  minLabelPx: number,
+): uPlot.Plugin {
   return {
     hooks: {
       draw: [
         (u) => {
-          if (!tags.length) return;
+          if (!tags.length || mode === "off") return;
           const xMin = u.scales.x.min ?? -Infinity;
           const xMax = u.scales.x.max ?? Infinity;
-          const visible = tags
+          let visible = tags
             .filter((t) => t.revision >= xMin && t.revision <= xMax)
             .map((t) => ({
               ...t,
@@ -145,6 +167,10 @@ function tagsPlugin(tags: TagMarker[]): uPlot.Plugin {
             .sort((a, b) => a.px - b.px);
 
           if (!visible.length) return;
+
+          // stables mode: still draw lines for all tags, but only label stables
+          const labelPool =
+            mode === "stables" ? visible.filter((t) => t.pri >= 2) : visible;
 
           const ctx = u.ctx;
           const y0 = u.bbox.top;
@@ -163,21 +189,43 @@ function tagsPlugin(tags: TagMarker[]): uPlot.Plugin {
           }
           ctx.setLineDash([]);
 
-          // 2) pick labels: greedy left-to-right with priority boost for stables
-          //    First pass: high-priority tags; second: fill remaining gaps
+          if (mode === "lines") {
+            ctx.restore();
+            return;
+          }
+
+          // 2) pick labels
           const labeled: { px: number; name: string }[] = [];
-          const tryPlace = (cands: typeof visible) => {
+          const tryPlace = (cands: typeof visible, minPx: number) => {
             for (const t of cands) {
-              if (labeled.some((L) => Math.abs(L.px - t.px) < MIN_LABEL_PX)) continue;
+              if (labeled.some((L) => Math.abs(L.px - t.px) < minPx)) continue;
               labeled.push({ px: t.px, name: shortTagLabel(t.name) });
             }
           };
-          tryPlace(visible.filter((t) => t.pri >= 2).sort((a, b) => a.px - b.px));
-          tryPlace(visible.filter((t) => t.pri === 1));
-          tryPlace(visible.filter((t) => t.pri === 0));
+
+          if (mode === "all") {
+            // still thin slightly if absurdly dense (< 14px)
+            tryPlace(labelPool, Math.min(minLabelPx, 14));
+          } else if (mode === "stables") {
+            tryPlace(labelPool.sort((a, b) => a.px - b.px), minLabelPx);
+          } else {
+            // auto: prefer stables, then fill
+            tryPlace(
+              labelPool.filter((t) => t.pri >= 2).sort((a, b) => a.px - b.px),
+              minLabelPx,
+            );
+            tryPlace(
+              labelPool.filter((t) => t.pri === 1),
+              minLabelPx,
+            );
+            tryPlace(
+              labelPool.filter((t) => t.pri === 0),
+              minLabelPx,
+            );
+          }
           labeled.sort((a, b) => a.px - b.px);
 
-          // 3) rotated labels just above the plot (readable, non-overlapping)
+          // 3) rotated labels
           ctx.font = "10px JetBrains Mono, monospace";
           ctx.fillStyle = cssVar("--text-faint", "#6b7c96");
           ctx.textAlign = "left";
@@ -188,7 +236,6 @@ function tagsPlugin(tags: TagMarker[]): uPlot.Plugin {
             ctx.rotate(-Math.PI / 4);
             ctx.fillText(L.name, 0, 0);
             ctx.restore();
-            // short tick at top so the line is still tied to the label
             ctx.strokeStyle = "rgba(148,163,184,0.55)";
             ctx.beginPath();
             ctx.moveTo(L.px, y0);
@@ -216,6 +263,8 @@ export function Chart({
   lo,
   hi,
   tags = [],
+  tagMode = "auto",
+  tagLabelMinPx = 52,
   formatRev,
   commitMessage,
   showCommitUrl,
@@ -255,7 +304,9 @@ export function Chart({
       plugins.push(bandFillPlugin(primaryLo, primaryHi, bandColor));
     }
 
-    if (tags.length) plugins.push(tagsPlugin(tags));
+    if (tags.length && tagMode !== "off") {
+      plugins.push(tagsPlugin(tags, tagMode, tagLabelMinPx));
+    }
 
     if (multi && multi.length > 0) {
       plotSeries = [
@@ -314,7 +365,8 @@ export function Chart({
     const fmtX = (rev: number) =>
       formatRev ? formatRev(rev) : String(Math.round(rev));
 
-    const topPad = tags.length ? 40 : 14;
+    const topPad =
+      tags.length && tagMode !== "off" && tagMode !== "lines" ? 40 : 14;
 
     const opts: uPlot.Options = {
       width: ref.current.clientWidth,
@@ -404,7 +456,23 @@ export function Chart({
       plot.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [x, y, y2, unit, height, labelA, labelB, multi, showLegend, lo, hi, tags, brushZoom]);
+  }, [
+    x,
+    y,
+    y2,
+    unit,
+    height,
+    labelA,
+    labelB,
+    multi,
+    showLegend,
+    lo,
+    hi,
+    tags,
+    tagMode,
+    tagLabelMinPx,
+    brushZoom,
+  ]);
 
   // dual cursor markers: click to set A then B
   useEffect(() => {
