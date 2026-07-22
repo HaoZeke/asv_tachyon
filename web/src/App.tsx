@@ -1051,7 +1051,7 @@ export default function App() {
                     {bench.code && (
                       <div className="card card-pad source">
                         <h3>Source</h3>
-                        <CodeBlock code={bench.code} lang="python" />
+                        <CodeBlock code={bench.code} lang="auto" />
                       </div>
                     )}
                     <div className="card card-pad">

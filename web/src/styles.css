@@ -523,6 +523,25 @@ code, .mono { font-family: var(--mono); }
 }
 .point-row code { color: var(--text-dim); }
 /* highlight.js output; colors from --syn-* (data-theme dark/light) */
+.code-block-wrap {
+  position: relative;
+}
+.code-lang-badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  z-index: 1;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: color-mix(in oklab, var(--bg1) 80%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.12rem 0.4rem;
+  pointer-events: none;
+}
 .source .code-block,
 .code-block.hljs,
 .code-block {
@@ -539,6 +558,7 @@ code, .mono { font-family: var(--mono); }
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.65rem 0.75rem;
+  padding-top: 1.35rem;
 }
 .code-block-inner {
   font: inherit;
