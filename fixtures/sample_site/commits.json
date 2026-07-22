@@ -1,0 +1,14 @@
+{
+  "by_revision": {
+    "20": "chore: baseline before sort regression",
+    "21": "perf: experimental sort path (regresses)",
+    "25": "release: v1.2.0",
+    "28": "fix: tighten keys bench",
+    "30": "docs: polish README"
+  },
+  "00000014abcdef00": "chore: baseline before sort regression",
+  "00000015abcdef00": "perf: experimental sort path (regresses)",
+  "00000019abcdef00": "release: v1.2.0",
+  "0000001cabcdef00": "fix: tighten keys bench",
+  "0000001eabcdef00": "docs: polish README"
+}

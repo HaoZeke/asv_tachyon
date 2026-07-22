@@ -181,10 +181,11 @@
     "track_count": {
       "name": "track_count",
       "type": "track",
-      "unit": "unit",
+      "unit": "ops",
       "params": [],
       "param_names": [],
-      "code": "def track_count():\n    return 42\n"
+      "code": "def track_count():\n    return 42\n",
+      "less_is_better": false
     }
   },
   "pages": []
