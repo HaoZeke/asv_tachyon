@@ -262,7 +262,9 @@ export function Chart({
           ? { x: true, y: false, setScale: true }
           : { x: false, y: false },
       },
-      select: brushZoom ? { show: true } : undefined,
+      select: brushZoom
+        ? { show: true, left: 0, top: 0, width: 0, height: 0 }
+        : undefined,
       scales: { x: { time: false }, y: {} },
       axes: [
         {

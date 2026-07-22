@@ -18,7 +18,7 @@ type Props = {
 };
 
 /** Multi-param benches: table of param combos at latest revision. */
-export function SummaryGrid({ index, benches, state, onOpen }: Props) {
+export function SummaryGrid({ benches, state, onOpen }: Props) {
   const multiNames = benches
     .filter((b) => (b.params || []).length > 0)
     .map((b) => b.name)
