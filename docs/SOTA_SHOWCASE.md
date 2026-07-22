@@ -16,7 +16,7 @@ Use after landing visual features. Target: https://haozeke.github.io/asv-numpy/
 - [ ] Commit tooltip (with `commits.json`) or hash-only fallback
 - [ ] Tag markers when `index.tags` non-empty
 - [ ] Report subview: vs previous rev/tag language
-- [ ] Profile link when `profiles.json` matches
+- [x] Profile link when `profiles.json` matches
 - [ ] Copy deep link restores view + bench + filters
 
 ## Overview / Heatmap / Grid / Multiples

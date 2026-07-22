@@ -160,6 +160,9 @@ jobs:
   #
   #   asv-tachyon serve .asv/html --open
   #   # Compare tab = spyglass ratios; Inventory tab = env lock diffs
+  #   # Optional: publish profile HTML from metric plugins
+  #   # python -m asv_bench_tachyon profiles publish --html-dir .asv/html
+  #   # python -m asv_bench_memray profiles publish --html-dir .asv/html
   #   # Optional: drop commits.json / profiles.json next to index.json
   #
   # Demo without a project:

@@ -1,26 +1,12 @@
-#+TITLE: Register the ASV plugin
-#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+#+TITLE: ASV plugin GUI
+#+OPTIONS: toc:nil
 
-* Register the ASV plugin
-
-Add to =asv.conf.json=:
+Optional HTML opener for =asv profile --gui=tachyon=:
 
 #+begin_src json
-{
-  "plugins": ["asv_tachyon.plugin"],
-  "matrix": {
-    "req": {
-      "pip+asv-tachyon": [""]
-    }
-  }
-}
+{ "plugins": ["asv_tachyon.plugin"] }
 #+end_src
 
-Then:
-
-#+begin_src bash
-asv profile --gui=list
-#+end_src
-
-Use =asv-tachyon sample= to collect sampling profiles. Use
-=asv profile --gui=tachyon= only for opening Tachyon HTML artifacts.
+Opens Tachyon / memray HTML reports. For cProfile dumps, use snakeviz.
+For sampling metrics, install =asv_bench_tachyon= and enable
+=sample_save_profile= (or =ASV_BENCH_TACHYON_PROFILE=1=).

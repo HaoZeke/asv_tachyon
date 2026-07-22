@@ -186,6 +186,22 @@
       "param_names": [],
       "code": "def track_count():\n    return 42\n",
       "less_is_better": false
+    },
+    "sample_hot_path": {
+      "name": "sample_hot_path",
+      "type": "time",
+      "unit": "seconds",
+      "params": [],
+      "param_names": [],
+      "code": "def sample_hot_path():\n    s = 0\n    for i in range(50_000):\n        s += i * i\n    return s\nsample_hot_path.sample_save_profile = True\n"
+    },
+    "ray_alloc": {
+      "name": "ray_alloc",
+      "type": "memory",
+      "unit": "bytes",
+      "params": [],
+      "param_names": [],
+      "code": "def ray_alloc():\n    return bytearray(1_000_000)\nray_alloc.ray_save_profile = True\n"
     }
   },
   "pages": []

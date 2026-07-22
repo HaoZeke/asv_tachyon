@@ -2,31 +2,20 @@ from pathlib import Path
 
 import pytest
 
-from asv_tachyon.util import TachyonError, parse_loops, require_sampling_python
+from asv_tachyon.util import TachyonError, open_path
 
 
-def test_parse_loops():
-    assert parse_loops(None) is None
-    assert parse_loops(5) == 5
-    with pytest.raises(TachyonError):
-        parse_loops(0)
+def test_open_path_missing(tmp_path):
+    with pytest.raises(TachyonError, match="No such path"):
+        open_path(tmp_path / "missing.html")
 
 
-def test_require_sampling_python_rejects_old(monkeypatch):
+def test_open_path_html_uses_webbrowser(tmp_path, monkeypatch):
+    p = tmp_path / "report.html"
+    p.write_text("<html></html>")
+    opened = []
     monkeypatch.setattr(
-        "asv_tachyon.util.python_version_tuple",
-        lambda _p: (3, 14, 0),
+        "webbrowser.open", lambda uri: opened.append(uri)
     )
-    with pytest.raises(TachyonError, match="3.15"):
-        require_sampling_python("python3.14")
-
-
-def test_which_python_keeps_venv_path(tmp_path):
-    from asv_tachyon.util import which_python
-    fake = tmp_path / ".venv" / "bin" / "python"
-    fake.parent.mkdir(parents=True)
-    fake.write_text("#!/bin/sh\n")
-    fake.chmod(0o755)
-    got = which_python(str(fake))
-    assert got.endswith(".venv/bin/python")
-    assert "asv_tachyon" not in got or str(tmp_path) in got
+    open_path(p)
+    assert opened and opened[0].startswith("file:")

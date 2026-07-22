@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>memray flamegraph — ray_alloc</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; background: #0d1424; color: #eef3ff; }
+  .bar { height: 28px; margin: 4px 0; background: linear-gradient(90deg,#2dd4bf,#0ea5e9); border-radius: 4px; display:flex; align-items:center; padding:0 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>memray report (demo)</h1>
+  <p>Benchmark: <code>ray_alloc</code> · peak memory metric from <strong>asv_bench_memray</strong></p>
+  <p>Published via <code>python -m asv_bench_memray profiles publish</code> into
+     <code>profiles.json</code> for asv-tachyon Explore “Open profile”.</p>
+  <div class="bar" style="width:90%">main (peak)</div>
+  <div class="bar" style="width:70%;margin-left:1rem">ray_alloc</div>
+  <div class="bar" style="width:55%;margin-left:2rem">list_alloc</div>
+  <div class="bar" style="width:40%;margin-left:3rem">bytes</div>
+</body>
+</html>

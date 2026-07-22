@@ -64,3 +64,6 @@ src/asv_tachyon/_version.py
 web/node_modules/
 
 .venv-docs/
+
+.netlify/
+

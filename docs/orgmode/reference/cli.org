@@ -1,7 +1,12 @@
-#+TITLE: CLI reference
-#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+#+TITLE: CLI
+#+OPTIONS: toc:nil
 
-* CLI reference
+=asv-tachyon= exposes two subcommands:
 
-Run =asv-tachyon --help= and =asv-tachyon sample --help= for the live flag
-list. Subcommands: =sample=, =replay=, =open=, =doctor=, =formats=.
+| Command | Purpose |
+|---------+---------|
+| =asv-tachyon serve [html_dir]= | Serve modern UI over published results |
+| =asv-tachyon install html_dir= | Copy SPA shell into =html_dir= |
+
+There is no =sample= / =replay= CLI here. Sampling metrics and flamegraph
+artifacts come from =asv_bench_tachyon= / =asv_bench_memray=.

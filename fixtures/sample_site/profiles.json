@@ -1,6 +1,10 @@
 {
   "paths": {
     "time_sort@30": "profiles/demo.html",
-    "time_sort": "profiles/demo.html"
+    "time_sort": "profiles/demo.html",
+    "sample_hot_path@30": "profiles/tachyon/sample_hot_path.html",
+    "sample_hot_path": "profiles/tachyon/sample_hot_path.html",
+    "ray_alloc@30": "profiles/memray/ray_alloc.html",
+    "ray_alloc": "profiles/memray/ray_alloc.html"
   }
 }

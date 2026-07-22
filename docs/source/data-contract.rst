@@ -17,6 +17,10 @@ Layout
      regressions.json    # optional — regression feed
      regressions.xml     # optional — Atom feed (stock ASV; ignored by UI)
      info.json           # optional — publish metadata
+     profiles.json       # optional — Explore "Open profile" links
+     profiles/           # optional — static HTML artifacts referenced above
+       tachyon/          # from asv_bench_tachyon
+       memray/           # from asv_bench_memray
 
 ``asv-tachyon serve html_dir`` overlays the SPA shell (``index.html`` +
 ``assets/``) while every ``*.json`` / ``graphs/**`` path is still read from
@@ -179,6 +183,42 @@ Example::
        ]
      ]
    }
+
+
+
+``profiles.json`` (optional sidecar)
+------------------------------------
+
+asv-tachyon Explore shows an **Open profile** link when a key matches the
+selected benchmark (prefer ``bench@rev``, fall back to bare ``bench``).
+
+Producers are the **metric plugins**, not this UI package:
+
+* ``asv_bench_tachyon`` — ``sample_*`` metrics + Tachyon flamegraph HTML
+* ``asv_bench_memray`` — ``ray_*`` peak memory + memray HTML
+
+Typical flow::
+
+   ASV_BENCH_TACHYON_PROFILE=1 asv run --bench sample_
+   ASV_BENCH_MEMRAY_PROFILE=1 asv run --bench ray_
+   asv publish
+   python -m asv_bench_tachyon profiles publish --html-dir .asv/html
+   python -m asv_bench_memray profiles publish --html-dir .asv/html
+   asv-tachyon serve .asv/html --open
+
+Shape::
+
+   {
+     "paths": {
+       "sample_hot_path@30": "profiles/tachyon/sample_hot_path.html",
+       "sample_hot_path": "profiles/tachyon/sample_hot_path.html",
+       "ray_alloc@30": "profiles/memray/ray_alloc.html"
+     }
+   }
+
+Paths are relative to ``html_dir`` and must be fetchable as static files.
+Both plugins **merge** into the same ``profiles.json`` (last publish wins on
+duplicate keys).
 
 Adapter checklist (pytest-benchmark, etc.)
 ------------------------------------------

@@ -16,28 +16,19 @@ drop-in shell over the same static data that `asv publish` already writes
 (`index.json`, `graphs/**`, `regressions.json`). No server-side app, no new
 result format, no second benchmark type.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/HaoZeke/asv_tachyon/main/docs/images/overview.jpg"
-       alt="asv-tachyon Overview — performance atlas with sparklines"
-       width="920" />
-</p>
-
-<p align="center"><em>Overview — sparkline tiles over published ASV graphs</em></p>
-
-## Gallery
-
-| Compare (spyglass-style ratios) | Inventory (SBOM-style env lock) |
-|:---:|:---:|
-| <img src="https://raw.githubusercontent.com/HaoZeke/asv_tachyon/main/docs/images/compare.jpg" alt="Compare view" width="440" /> | <img src="https://raw.githubusercontent.com/HaoZeke/asv_tachyon/main/docs/images/inventory.jpg" alt="Inventory view" width="440" /> |
-| Env or revision pairs · Before / After / Ratio · factor gate | added · removed · version-bumped · drop result JSON files |
+## Ecosystem
 
 | Tool | Job |
 |------|-----|
-| **asv** | run benchmarks, write results, `asv publish` data |
-| **asv-tachyon** | modern UI over that published tree |
+| **asv** | run benchmarks, write results, `asv publish` |
+| **asv-tachyon** | modern UI over that published tree (`serve` / `install`) |
 | **asv-spyglass** | CLI compare + SBOM-style `env-diff` on result files |
 | **asv-perch** | PR comment tables (CI) |
-| **asv_bench_tachyon** | `sample_*` metric plugin (separate package) |
+| **[asv_bench_tachyon](https://github.com/HaoZeke/asv_bench_tachyon)** | `sample_*` sampling metrics + Tachyon flamegraph HTML → `profiles.json` |
+| **[asv_bench_memray](https://github.com/HaoZeke/asv_bench_memray)** | `ray_*` peak-memory metrics + memray HTML → `profiles.json` |
+
+This package is **not** a sampling CLI. Profile *collection* lives in the
+`asv_bench_*` metric plugins; this UI only *displays* published sidecars.
 
 ## Install
 
@@ -70,73 +61,53 @@ Demo without a project:
 asv-tachyon serve fixtures/sample_site --open
 ```
 
-## What you get
+Open Explore → select `sample_hot_path` or `ray_alloc` → **Open profile**.
 
-- **Overview** — virtualized sparkline atlas, type/machine filter chips with
-  counts, only-regressed filter, light/dark themes
-- **Explore** — uPlot with CI bands, brush zoom, dual-cursor delta, tag
-  markers, commit tooltips (`commits.json`), distribution violin/strip when
-  samples exist, Report subview, multi-machine overlay, profile link
-  (`profiles.json`)
-- **Heatmap** — last-N revision ratios ("what regressed"); click opens Explore
-- **Grid** — multi-param summary table at latest revision
-- **Multiples** — small-multiples sparkline wall
-- **Compare** — multi-env compare-many columns from `graph_param_list`, or
-  revision pairs (same factor semantics as `asv compare` / asv-spyglass)
-- **Regressions** — `regressions.json` table with factor threshold + mute list
-  (`localStorage` key `asv-tachyon-mute`)
-- **Inventory** — SBOM-style env lock diffs (added / removed / version-bumped)
-- **Copy deep link** — copies `location.href` including hash filters
-- **Print / PDF** — print CSS for Compare / Inventory / Explore
-- Throughput / higher-is-better when `type` is `track`, unit contains `ops`,
-  or `less_is_better: false` in benchmark meta
-- Self-hosted fonts (offline-safe; no Google Fonts CDN)
-- Same data contract as the stock ASV site — see
-  [docs/source/data-contract.rst](docs/source/data-contract.rst) for
-  `index.json` + `graphs/**` + `regressions.json` shapes
+## Profile sidecars (`profiles.json`)
 
-### Optional sidecars (static)
+Explore shows **Open profile** when `profiles.json` maps the selected
+benchmark to a static HTML path. Metric plugins publish into that file:
+
+```bash
+# during asv run (optional env or per-bench attributes)
+ASV_BENCH_TACHYON_PROFILE=1 asv run --bench sample_
+ASV_BENCH_MEMRAY_PROFILE=1 asv run --bench ray_
+
+asv publish
+python -m asv_bench_tachyon profiles publish --html-dir .asv/html
+python -m asv_bench_memray profiles publish --html-dir .asv/html
+asv-tachyon serve .asv/html --open
+```
 
 | File | Role |
 |------|------|
-| `commits.json` | `{ "<fullhash>": "subject" }` or `{ "by_revision": { "12": "msg" } }` for chart tooltips |
-| `profiles.json` | `{ "paths": { "<bench>@<rev>": "profiles/foo.html" } }` — Explore "Open profile" |
-| Extended graph points | `[rev, { "v", "lo"?, "hi"?, "samples"? }]` for CI bands + distribution |
-| `samples/<same path as graph>` | sibling `{ "revision": [samples...] }` if not inlined |
+| `profiles.json` | `{ "paths": { "<bench>@<rev>": "profiles/…/x.html" } }` |
+| `profiles/tachyon/` | HTML from asv_bench_tachyon |
+| `profiles/memray/` | HTML from asv_bench_memray |
+| `commits.json` | commit subjects for chart tooltips |
+| Extended graph points | `[rev, { "v", "lo"?, "hi"?, "samples"? }]` |
 
-### Adapters
+## What you get
 
-Import foreign benchmark JSON into a minimal ASV html tree:
+- **Overview** — virtualized sparkline atlas, type/machine filter chips
+- **Explore** — uPlot with CI bands, distribution panel, **Open profile**
+- **Heatmap / Grid / Multiples / Compare / Regressions / Inventory**
+- Same data contract as the stock ASV site — see
+  [docs/source/data-contract.rst](docs/source/data-contract.rst)
 
-```bash
-python adapters/criterion_to_asv.py path/to/target/criterion -o asv_html
-python adapters/pytest_benchmark_to_asv.py bench.json -o asv_html
-asv-tachyon serve asv_html --open
+## Optional ASV GUI plugin
+
+```json
+{ "plugins": ["asv_tachyon.plugin"] }
 ```
 
-### CI template
-
-See [docs/workflows/asv-studio.yml](docs/workflows/asv-studio.yml) for a
-commented GitHub Actions outline: `asv publish` → `asv-tachyon install` →
-Pages; PR path with asv-perch / asv-spyglass; local spyglass recipe.
-
-## Development
-
 ```bash
-# terminal 1: static data
-asv-tachyon serve fixtures/sample_site -p 8765
-
-# terminal 2: vite (optional hot reload)
-cd web && npm install && npm run dev
+asv profile --gui=tachyon path/to/report.html
 ```
 
-Docs site (Sphinx + Shibuya):
-
-```bash
-pip install -e '.[docs]'
-sphinx-build -b html docs/source docs/build/html
-```
+Opens HTML artifacts only. For cProfile dumps, use snakeviz or collect
+profiles via `asv_bench_tachyon` / `asv_bench_memray`.
 
 ## License
 
-MIT.
+MIT. See `LICENSE`.

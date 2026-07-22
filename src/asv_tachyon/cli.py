@@ -56,14 +56,21 @@ def cmd_serve(html_dir: Path, host: str, port: int, open_browser: bool) -> int:
     class SPAHandler(Handler):
         def do_GET(self):  # noqa: N802
             path = self.path.split("?", 1)[0]
-            # data / graphs always from html_dir
+            # data / graphs / published profile HTML always from html_dir
             if (
                 path.startswith("/graphs/")
+                or path.startswith("/profiles/")
+                or path.startswith("/samples/")
                 or path.endswith(".json")
                 or path.endswith(".xml")
+                or path.endswith(".html")
                 or path.startswith("/assets/")
                 or path in ("/", "/index.html")
             ):
+                return super().do_GET()
+            # existing static file under html_dir (favicon, etc.)
+            rel = path.lstrip("/")
+            if rel and (html_dir / rel).is_file():
                 return super().do_GET()
             # hash routes: serve SPA
             self.path = "/index.html"

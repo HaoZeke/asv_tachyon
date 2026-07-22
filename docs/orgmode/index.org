@@ -1,17 +1,8 @@
 #+TITLE: asv-tachyon
-#+AUTHOR: [[https://rgoswami.me][Rohit Goswami]]
 #+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil ^:nil
 
-#+begin_export rst
-asv-tachyon
-===========
-
-:Author: `Rohit Goswami <https://rgoswami.me>`_
-#+end_export
-
 Modern web UI for airspeed velocity results. Drop-in shell over
-=asv publish= data. Screenshots and Sphinx pages live under =docs/source/=
-(primary docs entrypoint) — open the built site or the GitHub README gallery.
+=asv publish= data.
 
 * Install
 
@@ -21,6 +12,5 @@ asv publish
 asv-tachyon serve .asv/html --open
 #+end_src
 
-Primary documentation is the Sphinx tree in =docs/source/= (Overview,
-Compare, Inventory screenshots). Legacy sampling tutorials under this
-orgmode tree are historical and not the product surface.
+Profile artifacts: see =asv_bench_tachyon= / =asv_bench_memray= and
+=docs/source/data-contract.rst= (=profiles.json=).

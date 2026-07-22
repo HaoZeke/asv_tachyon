@@ -1,11 +1,9 @@
-#+TITLE: Sampling vs tracing
-#+OPTIONS: toc:nil num:nil author:nil title:nil ^:nil
+#+TITLE: Sampling metrics vs the results UI
+#+OPTIONS: toc:nil
 
-* Sampling vs tracing
+*asv-tachyon* is the results UI. *asv_bench_tachyon* is the =sample_*= metric
+plugin (Python 3.15 =profiling.sampling=). *asv_bench_memray* is the =ray_*=
+peak-memory plugin.
 
-Tracing profilers (=cProfile= / =profiling.tracing=) hook every call and return.
-They give exact counts but add high overhead.
-
-Sampling profilers (Tachyon) snapshot the stack on a timer from outside the
-process. They miss rare short functions and do not report call counts, but they
-leave the workload almost undisturbed---ideal for long ASV benchmarks.
+Both metric plugins can write HTML under =.asv/profiles/<kind>/= and publish
+into =profiles.json= so Explore can open them. The UI never runs a sampler.
