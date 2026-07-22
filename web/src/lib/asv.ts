@@ -8,7 +8,28 @@ export type BenchmarkInfo = {
   params: string[][];
   param_names: string[];
   timeout?: number;
+  /** When false, larger values are better (throughput / ops). */
+  less_is_better?: boolean;
 };
+
+/** Extended graph cell: value + optional CI band + raw samples. */
+export type GraphValueObject = {
+  v: number;
+  lo?: number;
+  hi?: number;
+  samples?: number[];
+};
+
+/**
+ * Classic: number | number[] (param combos)
+ * Extended: { v, lo?, hi?, samples? } or array of those / numbers
+ */
+export type GraphCell =
+  | number
+  | number[]
+  | GraphValueObject
+  | Array<number | GraphValueObject | null>
+  | null;
 
 export type AsvIndex = {
   project: string;
@@ -25,7 +46,90 @@ export type AsvIndex = {
   pages?: unknown[];
 };
 
-export type GraphPoint = [number, number | number[] | null];
+export type GraphPoint = [number, GraphCell];
+
+export function isGraphValueObject(v: unknown): v is GraphValueObject {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    !Array.isArray(v) &&
+    typeof (v as GraphValueObject).v === "number"
+  );
+}
+
+/** Extract finite scalar from a graph cell (mean of params when array). */
+export function cellScalar(val: GraphCell): number | null {
+  if (val == null) return null;
+  if (typeof val === "number") return Number.isFinite(val) ? val : null;
+  if (isGraphValueObject(val)) return Number.isFinite(val.v) ? val.v : null;
+  if (Array.isArray(val)) {
+    const nums: number[] = [];
+    for (const item of val) {
+      if (typeof item === "number" && Number.isFinite(item)) nums.push(item);
+      else if (isGraphValueObject(item) && Number.isFinite(item.v)) nums.push(item.v);
+    }
+    if (!nums.length) return null;
+    return nums.reduce((a, b) => a + b, 0) / nums.length;
+  }
+  return null;
+}
+
+export function cellLoHi(val: GraphCell): { lo?: number; hi?: number } {
+  if (isGraphValueObject(val)) {
+    return {
+      lo: typeof val.lo === "number" ? val.lo : undefined,
+      hi: typeof val.hi === "number" ? val.hi : undefined,
+    };
+  }
+  return {};
+}
+
+export function cellSamples(val: GraphCell): number[] | null {
+  if (isGraphValueObject(val) && Array.isArray(val.samples) && val.samples.length) {
+    return val.samples.filter((x) => typeof x === "number" && Number.isFinite(x));
+  }
+  return null;
+}
+
+/** Scalar series with optional per-point CI and samples (last revision samples for dist). */
+export type RichSeries = {
+  x: number[];
+  y: number[];
+  lo: (number | null)[];
+  hi: (number | null)[];
+  samplesByRev: Record<number, number[]>;
+};
+
+export function richSeries(points: GraphPoint[]): RichSeries {
+  const x: number[] = [];
+  const y: number[] = [];
+  const lo: (number | null)[] = [];
+  const hi: (number | null)[] = [];
+  const samplesByRev: Record<number, number[]> = {};
+  for (const [rev, val] of points) {
+    const s = cellScalar(val);
+    if (s == null) continue;
+    x.push(rev);
+    y.push(s);
+    const band = cellLoHi(val);
+    lo.push(band.lo ?? null);
+    hi.push(band.hi ?? null);
+    const sm = cellSamples(val);
+    if (sm?.length) samplesByRev[rev] = sm;
+  }
+  return { x, y, lo, hi, samplesByRev };
+}
+
+/** True when larger measured values are better (ops/s, track counts, …). */
+export function isHigherBetter(bench: Pick<BenchmarkInfo, "type" | "unit" | "less_is_better">): boolean {
+  if (bench.less_is_better === false) return true;
+  if (bench.less_is_better === true) return false;
+  const unit = (bench.unit || "").toLowerCase();
+  if (unit.includes("ops")) return true;
+  const t = (bench.type || "").toLowerCase();
+  if (t === "track") return true;
+  return false;
+}
 
 /** Spyglass / asv compare-style row */
 export type PairRow = {
@@ -92,7 +196,9 @@ export async function loadGraph(path: string, base = ""): Promise<GraphPoint[]> 
 
 export function prettyUnit(x: number, unit: string): string {
   if (!Number.isFinite(x)) return "—";
-  if (unit === "seconds") {
+  const u = unit || "";
+  const ul = u.toLowerCase();
+  if (u === "seconds") {
     const units: [string, number][] = [
       ["ps", 1e-12], ["ns", 1e-9], ["µs", 1e-6], ["ms", 1e-3],
       ["s", 1], ["m", 60], ["h", 3600],
@@ -102,7 +208,7 @@ export function prettyUnit(x: number, unit: string): string {
     }
     return (x / 3600).toFixed(3) + "h";
   }
-  if (unit === "bytes") {
+  if (u === "bytes") {
     const units: [string, number][] = [["B", 1], ["kB", 1e3], ["MB", 1e6], ["GB", 1e9]];
     for (let i = 0; i < units.length - 1; i++) {
       if (Math.abs(x) < units[i + 1][1]) {
@@ -112,7 +218,13 @@ export function prettyUnit(x: number, unit: string): string {
     }
     return (x / 1e9).toFixed(2) + "GB";
   }
-  return x.toPrecision(4) + (unit && unit !== "unit" ? ` ${unit}` : "");
+  if (ul.includes("ops") || ul.includes("/s") || ul === "ops/s") {
+    if (Math.abs(x) >= 1e9) return (x / 1e9).toFixed(2) + "G" + (ul.includes("ops") ? "ops/s" : u);
+    if (Math.abs(x) >= 1e6) return (x / 1e6).toFixed(2) + "Mops/s";
+    if (Math.abs(x) >= 1e3) return (x / 1e3).toFixed(2) + "kops/s";
+    return x.toPrecision(4) + (u ? ` ${u}` : " ops/s");
+  }
+  return x.toPrecision(4) + (u && u !== "unit" ? ` ${u}` : "");
 }
 
 export function commitHash(index: AsvIndex, revision: number): string {
@@ -122,21 +234,8 @@ export function commitHash(index: AsvIndex, revision: number): string {
 }
 
 export function scalarSeries(points: GraphPoint[]): { x: number[]; y: number[] } {
-  const x: number[] = [];
-  const y: number[] = [];
-  for (const [rev, val] of points) {
-    if (val == null) continue;
-    if (Array.isArray(val)) {
-      const nums = val.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-      if (!nums.length) continue;
-      x.push(rev);
-      y.push(nums.reduce((a, b) => a + b, 0) / nums.length);
-    } else if (typeof val === "number" && Number.isFinite(val)) {
-      x.push(rev);
-      y.push(val);
-    }
-  }
-  return { x, y };
+  const rich = richSeries(points);
+  return { x: rich.x, y: rich.y };
 }
 
 export function seriesStats(y: number[]) {
@@ -187,13 +286,15 @@ export function valueAtRevision(
  * Pairwise classification mirroring asv / asv-spyglass:
  * after/before ratio; factor threshold (default 1.1).
  * Without sample CI we approximate stats with magnitude-only factor.
+ * When higherIsBetter, improvement is after > before (throughput / ops).
  */
 export function classifyPair(
   before: number | null,
   after: number | null,
   factor = 1.1,
+  higherIsBetter = false,
 ): Pick<PairRow, "ratio" | "mark" | "color"> {
-  // Mirrors asv.commands.compare / asv-spyglass (lower is better).
+  // Mirrors asv.commands.compare / asv-spyglass (lower is better by default).
   if (before == null && after == null)
     return { ratio: null, mark: " ", color: "default" };
   if (before != null && after == null)
@@ -207,12 +308,21 @@ export function classifyPair(
   }
 
   const ratio = after / before;
-  // after clearly better (smaller): before/after > factor  ⇒  after < before/factor
-  if (before / after > factor)
-    return { ratio, mark: "-", color: "green" };
-  // after clearly worse (larger)
-  if (after / before > factor)
-    return { ratio, mark: "+", color: "red" };
+  if (higherIsBetter) {
+    // after clearly better (larger): after/before > factor
+    if (after / before > factor)
+      return { ratio, mark: "-", color: "green" };
+    // after clearly worse (smaller)
+    if (before / after > factor)
+      return { ratio, mark: "+", color: "red" };
+  } else {
+    // after clearly better (smaller): before/after > factor
+    if (before / after > factor)
+      return { ratio, mark: "-", color: "green" };
+    // after clearly worse (larger)
+    if (after / before > factor)
+      return { ratio, mark: "+", color: "red" };
+  }
   // magnitude would flip without the factor slack → mark insignificant
   if (ratio !== 1 && (after < before || after > before))
     return { ratio, mark: "~", color: "default" };
@@ -221,7 +331,7 @@ export function classifyPair(
 
 export function buildPairRows(
   names: string[],
-  meta: Record<string, { unit: string; type: string }>,
+  meta: Record<string, { unit: string; type: string; less_is_better?: boolean }>,
   beforeVals: Record<string, number | null>,
   afterVals: Record<string, number | null>,
   opts: {
@@ -235,13 +345,15 @@ export function buildPairRows(
   for (const name of names) {
     const before = beforeVals[name] ?? null;
     const after = afterVals[name] ?? null;
-    const cls = classifyPair(before, after, factor);
+    const m = meta[name] || { unit: "seconds", type: "time" };
+    const hib = isHigherBetter(m);
+    const cls = classifyPair(before, after, factor, hib);
     if (opts.onlyChanged && (cls.mark === " " || cls.mark === "x" || cls.mark === "~"))
       continue;
     rows.push({
       name,
-      unit: meta[name]?.unit ?? "seconds",
-      type: meta[name]?.type ?? "time",
+      unit: m.unit ?? "seconds",
+      type: m.type ?? "time",
       before,
       after,
       ...cls,
@@ -340,6 +452,19 @@ export type NamedSeries = {
  * Expand graph points that carry multi-value arrays (one entry per param combo)
  * into separate y-series sharing the same x (revision) axis.
  */
+function paramCellAt(val: GraphCell, idx: number): number | null {
+  if (val == null) return null;
+  if (Array.isArray(val)) {
+    const item = val[idx];
+    if (typeof item === "number" && Number.isFinite(item)) return item;
+    if (isGraphValueObject(item)) return Number.isFinite(item.v) ? item.v : null;
+    return null;
+  }
+  if (isGraphValueObject(val)) return idx === 0 && Number.isFinite(val.v) ? val.v : null;
+  if (typeof val === "number" && Number.isFinite(val)) return idx === 0 ? val : null;
+  return null;
+}
+
 export function multiSeriesFromGraph(
   points: GraphPoint[],
   combos: ParamCombo[],
@@ -357,24 +482,8 @@ export function multiSeriesFromGraph(
 
   for (const [rev, val] of points) {
     x.push(rev);
-    if (val == null) {
-      for (const c of active) buckets.get(c.index)!.push(null);
-      continue;
-    }
-    if (Array.isArray(val)) {
-      for (const c of active) {
-        const v = val[c.index];
-        buckets
-          .get(c.index)!
-          .push(typeof v === "number" && Number.isFinite(v) ? v : null);
-      }
-    } else if (typeof val === "number" && Number.isFinite(val)) {
-      // scalar graph: only index 0 is meaningful
-      for (const c of active) {
-        buckets.get(c.index)!.push(c.index === 0 ? val : null);
-      }
-    } else {
-      for (const c of active) buckets.get(c.index)!.push(null);
+    for (const c of active) {
+      buckets.get(c.index)!.push(paramCellAt(val, c.index));
     }
   }
 
@@ -540,7 +649,7 @@ export function graphParamStates(index: AsvIndex): EnvColumn[] {
 
 export function buildMultiEnvRows(
   names: string[],
-  meta: Record<string, { unit: string; type: string }>,
+  meta: Record<string, { unit: string; type: string; less_is_better?: boolean }>,
   baselineVals: Record<string, number | null>,
   contenderVals: Record<string, number | null>[],
   opts: {
@@ -553,9 +662,11 @@ export function buildMultiEnvRows(
   const rows: MultiEnvRow[] = [];
   for (const name of names) {
     const baseline = baselineVals[name] ?? null;
+    const m = meta[name] || { unit: "seconds", type: "time" };
+    const hib = isHigherBetter(m);
     const contenders = contenderVals.map((cv) => {
       const value = cv[name] ?? null;
-      const cls = classifyPair(baseline, value, factor);
+      const cls = classifyPair(baseline, value, factor, hib);
       return { value, ...cls };
     });
     if (opts.onlyChanged) {
@@ -604,13 +715,33 @@ export type AppHashState = {
   /** graph_param_list indices for multi-env compare (first = baseline) */
   envs?: number[];
   pairMode?: "env" | "revision";
+  /** type filter chips: time,mem,peak,track */
+  types?: string[];
+  /** only benches that regressed vs previous revision */
+  onlyRegressed?: boolean;
+  /** multi-machine overlay names */
+  machines?: string[];
+  /** explore report subview */
+  sub?: string;
 };
+
+export const ALL_VIEWS = [
+  "overview",
+  "explore",
+  "compare",
+  "inventory",
+  "regressions",
+  "heatmap",
+  "grid",
+  "multiples",
+] as const;
+
+export type AppView = (typeof ALL_VIEWS)[number];
 
 export function parseHash(hash = window.location.hash): AppHashState {
   const raw = hash.startsWith("#") ? hash.slice(1) : hash;
   if (!raw) return {};
   const params = new URLSearchParams(raw.includes("=") ? raw : "");
-  // also support key=value&… without URLSearchParams quirks for empty
   const out: AppHashState = {};
   const view = params.get("view");
   if (view) out.view = view;
@@ -634,12 +765,22 @@ export function parseHash(hash = window.location.hash): AppHashState {
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isFinite(n));
   }
+  const types = params.get("types");
+  if (types) {
+    out.types = types.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  if (params.get("onlyReg") === "1") out.onlyRegressed = true;
+  const machines = params.get("machines");
+  if (machines) {
+    out.machines = machines.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  const sub = params.get("sub");
+  if (sub) out.sub = sub;
   const filters: Record<string, string> = {};
   for (const key of ["machine", "branch", "python"]) {
     const v = params.get(key);
     if (v) filters[key] = v;
   }
-  // any other f- keys
   params.forEach((v, k) => {
     if (k.startsWith("f-") && v) filters[k.slice(2)] = v;
   });
@@ -655,6 +796,10 @@ export function formatHash(state: AppHashState): string {
   if (state.pairMode) params.set("pairMode", state.pairMode);
   if (state.params?.length) params.set("params", state.params.join(","));
   if (state.envs?.length) params.set("envs", state.envs.join(","));
+  if (state.types?.length) params.set("types", state.types.join(","));
+  if (state.onlyRegressed) params.set("onlyReg", "1");
+  if (state.machines?.length) params.set("machines", state.machines.join(","));
+  if (state.sub) params.set("sub", state.sub);
   if (state.filters) {
     for (const [k, v] of Object.entries(state.filters)) {
       if (k === "machine" || k === "branch" || k === "python") params.set(k, v);
@@ -663,4 +808,26 @@ export function formatHash(state: AppHashState): string {
   }
   const s = params.toString();
   return s ? `#${s}` : "";
+}
+
+/** Map benchmark type string to coarse chip key. */
+export function typeKey(t: string): "time" | "mem" | "peak" | "track" | "other" {
+  const k = t.toLowerCase();
+  if (k.includes("peak")) return "peak";
+  if (k.includes("mem")) return "mem";
+  if (k.includes("track")) return "track";
+  if (k.includes("time")) return "time";
+  return "other";
+}
+
+export function fullCommitHash(index: AsvIndex, revision: number): string | undefined {
+  return index.revision_to_hash[String(revision)];
+}
+
+/** Tags as sorted list of {name, revision} for x-axis markers. */
+export function tagMarkers(index: AsvIndex): { name: string; revision: number }[] {
+  return Object.entries(index.tags || {})
+    .map(([name, rev]) => ({ name, revision: Number(rev) }))
+    .filter((t) => Number.isFinite(t.revision))
+    .sort((a, b) => a.revision - b.revision);
 }
