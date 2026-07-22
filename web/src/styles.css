@@ -410,6 +410,79 @@ code, .mono { font-family: var(--mono); }
 .chart-wrap { width: 100%; height: 380px; }
 .chart-wrap .uplot { font-family: var(--mono); }
 
+/* External release-tag rail (labels off-canvas so series stay clean) */
+.tag-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  margin-top: 0.55rem;
+  min-height: 1.75rem;
+}
+.tag-rail-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+.tag-chip {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  cursor: default;
+  line-height: 1.2;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.tag-chip.is-stable {
+  color: var(--text);
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+}
+.tag-chip:hover,
+.tag-chip:focus-visible,
+.tag-chip.is-active {
+  outline: none;
+  color: var(--bg0, #0b1220);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.tag-rail-meta {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.95rem;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.chart-legend-sw {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
 .side-panel { display: flex; flex-direction: column; gap: 0.75rem; }
 .side-panel h3 {
   margin: 0 0 0.55rem;
@@ -570,7 +643,7 @@ code, .mono { font-family: var(--mono); }
 .chart-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.65rem 1rem;
   margin-top: 0.65rem;
   padding-top: 0.55rem;
@@ -578,10 +651,19 @@ code, .mono { font-family: var(--mono); }
 }
 .chart-tag-mode {
   min-width: 7.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.chart-tag-mode span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 .chart-tag-hint {
   font-size: 0.75rem;
-  padding-bottom: 0.35rem;
 }
 
 /* —— inventory / SBOM-style env diff —— */
@@ -861,17 +943,16 @@ code, .mono { font-family: var(--mono); }
 
 .filter-chips { margin-bottom: 0.55rem; }
 
-.chart-panel { position: relative; }
+.chart-panel { position: relative; display: flex; flex-direction: column; }
 .chart-chrome {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.85rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.35rem;
   margin-top: 0.45rem;
   font-size: 0.78rem;
 }
-.chart-tooltip { color: var(--text-dim); }
-.chart-delta { font-size: 0.72rem; }
+.chart-tooltip { color: var(--text-dim); line-height: 1.45; }
+.chart-delta { font-size: 0.72rem; line-height: 1.4; }
 
 .dist-panel h3 {
   margin: 0 0 0.55rem;

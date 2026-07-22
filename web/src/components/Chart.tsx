@@ -18,17 +18,17 @@ export type TagMarker = { name: string; revision: number };
 
 /** How release tags are drawn on the chart. */
 export type TagDisplayMode =
-  | "auto" // thin labels, prefer stables (default)
-  | "stables" // lines for all in range; labels only stable releases
-  | "all" // label everything (can crowd dense histories)
-  | "lines" // verticals only, no text
+  | "auto" // guides + thinned stable chips (default)
+  | "stables" // guides for all; chips only for final releases
+  | "all" // guides + every tag chip (scrollable rail)
+  | "lines" // vertical guides only, no chips
   | "off"; // nothing
 
 export const TAG_DISPLAY_MODES: { id: TagDisplayMode; label: string; hint: string }[] = [
-  { id: "auto", label: "Auto", hint: "Thin labels, prefer stable releases" },
-  { id: "stables", label: "Stables", hint: "Label final releases only" },
-  { id: "all", label: "All", hint: "Every tag (dense histories get crowded)" },
-  { id: "lines", label: "Lines", hint: "Vertical guides, no text" },
+  { id: "auto", label: "Auto", hint: "Guides + thinned stable chips" },
+  { id: "stables", label: "Stables", hint: "Chips for final releases only" },
+  { id: "all", label: "All", hint: "Every tag in range (scroll the rail)" },
+  { id: "lines", label: "Lines", hint: "Vertical guides, no labels" },
   { id: "off", label: "Off", hint: "Hide tags" },
 ];
 
@@ -137,18 +137,19 @@ function tagLabelPriority(name: string): number {
 function shortTagLabel(name: string): string {
   // v1.23.0 -> 1.23; keep rc/dev markers compact
   let s = name.replace(/^v/i, "");
-  if (s.length > 10) s = s.slice(0, 9) + "…";
+  if (/^\d+\.\d+\.0$/.test(s)) s = s.replace(/\.0$/, "");
+  if (s.length > 12) s = s.slice(0, 11) + "…";
   return s;
 }
 
 /**
- * Draw tag verticals / labels according to TagDisplayMode.
- * Re-runs on zoom so denser labels appear when the range shrinks (auto/all).
+ * Vertical guides only. Labels live in the HTML tag rail so they never
+ * collide with series ink or each other on the canvas.
  */
 function tagsPlugin(
   tags: TagMarker[],
   mode: TagDisplayMode,
-  minLabelPx: number,
+  highlightRef: { current: number | null },
 ): uPlot.Plugin {
   return {
     hooks: {
@@ -157,7 +158,7 @@ function tagsPlugin(
           if (!tags.length || mode === "off") return;
           const xMin = u.scales.x.min ?? -Infinity;
           const xMax = u.scales.x.max ?? Infinity;
-          let visible = tags
+          const visible = tags
             .filter((t) => t.revision >= xMin && t.revision <= xMax)
             .map((t) => ({
               ...t,
@@ -168,86 +169,100 @@ function tagsPlugin(
 
           if (!visible.length) return;
 
-          // stables mode: still draw lines for all tags, but only label stables
-          const labelPool =
-            mode === "stables" ? visible.filter((t) => t.pri >= 2) : visible;
-
           const ctx = u.ctx;
           const y0 = u.bbox.top;
           const y1 = u.bbox.top + u.bbox.height;
+          const hi = highlightRef.current;
           ctx.save();
 
-          // 1) faint lines for every tag in range
-          ctx.strokeStyle = "rgba(148,163,184,0.28)";
-          ctx.lineWidth = 1;
-          ctx.setLineDash([2, 4]);
           for (const t of visible) {
+            const isHi = hi != null && t.revision === hi;
+            const isStable = t.pri >= 2;
             ctx.beginPath();
             ctx.moveTo(t.px, y0);
             ctx.lineTo(t.px, y1);
+            if (isHi) {
+              ctx.strokeStyle = "rgba(45, 212, 191, 0.72)";
+              ctx.lineWidth = 1.75;
+              ctx.setLineDash([]);
+            } else if (isStable) {
+              ctx.strokeStyle = "rgba(148, 163, 184, 0.38)";
+              ctx.lineWidth = 1;
+              ctx.setLineDash([3, 5]);
+            } else {
+              ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+              ctx.lineWidth = 1;
+              ctx.setLineDash([2, 6]);
+            }
             ctx.stroke();
           }
           ctx.setLineDash([]);
-
-          if (mode === "lines") {
-            ctx.restore();
-            return;
-          }
-
-          // 2) pick labels
-          const labeled: { px: number; name: string }[] = [];
-          const tryPlace = (cands: typeof visible, minPx: number) => {
-            for (const t of cands) {
-              if (labeled.some((L) => Math.abs(L.px - t.px) < minPx)) continue;
-              labeled.push({ px: t.px, name: shortTagLabel(t.name) });
-            }
-          };
-
-          if (mode === "all") {
-            // still thin slightly if absurdly dense (< 14px)
-            tryPlace(labelPool, Math.min(minLabelPx, 14));
-          } else if (mode === "stables") {
-            tryPlace(labelPool.sort((a, b) => a.px - b.px), minLabelPx);
-          } else {
-            // auto: prefer stables, then fill
-            tryPlace(
-              labelPool.filter((t) => t.pri >= 2).sort((a, b) => a.px - b.px),
-              minLabelPx,
-            );
-            tryPlace(
-              labelPool.filter((t) => t.pri === 1),
-              minLabelPx,
-            );
-            tryPlace(
-              labelPool.filter((t) => t.pri === 0),
-              minLabelPx,
-            );
-          }
-          labeled.sort((a, b) => a.px - b.px);
-
-          // 3) rotated labels
-          ctx.font = "10px JetBrains Mono, monospace";
-          ctx.fillStyle = cssVar("--text-faint", "#6b7c96");
-          ctx.textAlign = "left";
-          ctx.textBaseline = "middle";
-          for (const L of labeled) {
-            ctx.save();
-            ctx.translate(L.px + 2, y0 + 4);
-            ctx.rotate(-Math.PI / 4);
-            ctx.fillText(L.name, 0, 0);
-            ctx.restore();
-            ctx.strokeStyle = "rgba(148,163,184,0.55)";
-            ctx.beginPath();
-            ctx.moveTo(L.px, y0);
-            ctx.lineTo(L.px, y0 + 6);
-            ctx.stroke();
-          }
-
           ctx.restore();
         },
       ],
     },
   };
+}
+
+/** Pick chips for the external tag rail given mode + current x range. */
+function selectTagChips(
+  tags: TagMarker[],
+  mode: TagDisplayMode,
+  xMin: number,
+  xMax: number,
+  maxChips: number,
+): TagMarker[] {
+  if (mode === "off" || mode === "lines") return [];
+  const visible = tags
+    .filter((t) => t.revision >= xMin && t.revision <= xMax)
+    .map((t) => ({ ...t, pri: tagLabelPriority(t.name) }))
+    .sort((a, b) => a.revision - b.revision);
+  if (!visible.length) return [];
+
+  if (mode === "all") return visible.map(({ name, revision }) => ({ name, revision }));
+
+  const stables = visible.filter((t) => t.pri >= 2);
+  const pool = mode === "stables" ? stables : visible;
+
+  // Even spacing across the visible revision span, prefer high priority.
+  if (pool.length <= maxChips) {
+    return pool.map(({ name, revision }) => ({ name, revision }));
+  }
+  const span = Math.max(1, xMax - xMin);
+  const slot = span / maxChips;
+  const picked: typeof pool = [];
+  const used = new Set<number>();
+
+  const tryAdd = (cands: typeof pool) => {
+    for (const t of cands) {
+      if (picked.length >= maxChips) break;
+      if (used.has(t.revision)) continue;
+      const tooClose = picked.some(
+        (p) => Math.abs(p.revision - t.revision) < slot * 0.55,
+      );
+      if (tooClose) continue;
+      picked.push(t);
+      used.add(t.revision);
+    }
+  };
+
+  tryAdd(pool.filter((t) => t.pri >= 2));
+  if (mode === "auto") {
+    tryAdd(pool.filter((t) => t.pri === 1));
+    tryAdd(pool.filter((t) => t.pri === 0));
+  }
+  // If still sparse, back-fill nearest unpicked stables/pool by position
+  if (picked.length < Math.min(maxChips, pool.length)) {
+    for (const t of pool) {
+      if (picked.length >= maxChips) break;
+      if (used.has(t.revision)) continue;
+      picked.push(t);
+      used.add(t.revision);
+    }
+  }
+  return picked
+    .sort((a, b) => a.revision - b.revision)
+    .map(({ name, revision }) => ({ name, revision }));
 }
 
 export function Chart({
@@ -264,7 +279,7 @@ export function Chart({
   hi,
   tags = [],
   tagMode = "auto",
-  tagLabelMinPx = 52,
+  tagLabelMinPx: _tagLabelMinPx = 52,
   formatRev,
   commitMessage,
   showCommitUrl,
@@ -274,10 +289,13 @@ export function Chart({
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
+  const highlightRef = useRef<number | null>(null);
   const [cursor, setCursor] = useState<CursorInfo | null>(null);
   const [markers, setMarkers] = useState<[number | null, number | null]>([null, null]);
   const [delta, setDelta] = useState<{ abs: number; pct: number; a: number; b: number } | null>(null);
   const [zoomed, setZoomed] = useState(false);
+  const [xRange, setXRange] = useState<[number, number] | null>(null);
+  const [highlightRev, setHighlightRev] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ref.current || !x.length) return;
@@ -305,7 +323,7 @@ export function Chart({
     }
 
     if (tags.length && tagMode !== "off") {
-      plugins.push(tagsPlugin(tags, tagMode, tagLabelMinPx));
+      plugins.push(tagsPlugin(tags, tagMode, highlightRef));
     }
 
     if (multi && multi.length > 0) {
@@ -355,23 +373,14 @@ export function Chart({
         : [x, y ?? []];
     }
 
-    const legendOn =
-      showLegend != null
-        ? showLegend
-        : multi
-          ? multi.length > 1
-          : y2 != null;
-
+    // Custom HTML legend below — uPlot's built-in legend collides with chrome.
     const fmtX = (rev: number) =>
       formatRev ? formatRev(rev) : String(Math.round(rev));
-
-    const topPad =
-      tags.length && tagMode !== "off" && tagMode !== "lines" ? 40 : 14;
 
     const opts: uPlot.Options = {
       width: ref.current.clientWidth,
       height,
-      padding: [topPad, 16, 8, 8],
+      padding: [12, 16, 8, 8],
       plugins,
       cursor: {
         show: true,
@@ -402,8 +411,23 @@ export function Chart({
         },
       ],
       series: plotSeries,
-      legend: { show: legendOn },
+      legend: { show: false },
       hooks: {
+        ready: [
+          (u) => {
+            const min = u.scales.x.min;
+            const max = u.scales.x.max;
+            if (min != null && max != null) setXRange([min, max]);
+          },
+        ],
+        setScale: [
+          (u, key) => {
+            if (key !== "x") return;
+            const min = u.scales.x.min;
+            const max = u.scales.x.max;
+            if (min != null && max != null) setXRange([min, max]);
+          },
+        ],
         setCursor: [
           (u) => {
             const idx = u.cursor.idx;
@@ -470,7 +494,6 @@ export function Chart({
     hi,
     tags,
     tagMode,
-    tagLabelMinPx,
     brushZoom,
   ]);
 
@@ -529,9 +552,107 @@ export function Chart({
         ? showCommitUrl + cursor.hash
         : null;
 
+  const showSeriesLegend =
+    showLegend != null
+      ? showLegend
+      : multi
+        ? multi.length > 1
+        : y2 != null;
+
+  const rangeMin = xRange?.[0] ?? x[0];
+  const rangeMax = xRange?.[1] ?? x[x.length - 1];
+  // Auto/stables cap chip count; All shows every tag in range (rail scrolls).
+  const railChips = selectTagChips(
+    tags,
+    tagMode,
+    rangeMin,
+    rangeMax,
+    tagMode === "all" ? 10_000 : 12,
+  );
+  const tagsInView = tags.filter(
+    (t) => t.revision >= rangeMin && t.revision <= rangeMax,
+  ).length;
+
+  const setHighlight = (rev: number | null) => {
+    highlightRef.current = rev;
+    setHighlightRev(rev);
+    plot.current?.redraw(false, false);
+  };
+
   return (
     <div className="chart-panel">
       <div className="chart-wrap" ref={ref} />
+
+      {tagMode !== "off" && tags.length > 0 && (
+        <div className="tag-rail" aria-label="Release tags in view">
+          {tagMode === "lines" ? (
+            <span className="tag-rail-meta muted">
+              {tagsInView} tag guide{tagsInView === 1 ? "" : "s"} in view
+            </span>
+          ) : railChips.length === 0 ? (
+            <span className="tag-rail-meta muted">No tags in this zoom range</span>
+          ) : (
+            <div className="tag-rail-chips">
+              {railChips.map((t) => (
+                <button
+                  key={`${t.name}@${t.revision}`}
+                  type="button"
+                  className={
+                    "tag-chip" +
+                    (highlightRev === t.revision ? " is-active" : "") +
+                    (tagLabelPriority(t.name) >= 2 ? " is-stable" : "")
+                  }
+                  title={`${t.name} · rev ${t.revision}`}
+                  onMouseEnter={() => setHighlight(t.revision)}
+                  onMouseLeave={() => setHighlight(null)}
+                  onFocus={() => setHighlight(t.revision)}
+                  onBlur={() => setHighlight(null)}
+                >
+                  {shortTagLabel(t.name)}
+                </button>
+              ))}
+            </div>
+          )}
+          {tagMode !== "lines" && tagsInView > railChips.length && (
+            <span className="tag-rail-meta muted">
+              {railChips.length}/{tagsInView} shown
+              {tagMode === "auto" || tagMode === "stables"
+                ? " · zoom in for denser chips"
+                : " · scroll"}
+            </span>
+          )}
+        </div>
+      )}
+
+      {showSeriesLegend && (
+        <div className="chart-legend" aria-label="Series">
+          {multi && multi.length > 0
+            ? multi.map((s, i) => (
+                <span key={s.label} className="chart-legend-item">
+                  <i
+                    className="chart-legend-sw"
+                    style={{ background: s.color || seriesColor(i) }}
+                  />
+                  {s.label}
+                </span>
+              ))
+            : (
+              <>
+                <span className="chart-legend-item">
+                  <i className="chart-legend-sw" style={{ background: "var(--chart-line, #2dd4bf)" }} />
+                  {labelA}
+                </span>
+                {y2 != null && (
+                  <span className="chart-legend-item">
+                    <i className="chart-legend-sw" style={{ background: "var(--accent-2, #38bdf8)" }} />
+                    {labelB}
+                  </span>
+                )}
+              </>
+            )}
+        </div>
+      )}
+
       <div className="chart-chrome">
         {cursor && (
           <div className="chart-tooltip">
