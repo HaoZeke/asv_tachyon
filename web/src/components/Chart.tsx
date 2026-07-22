@@ -314,10 +314,12 @@ export function Chart({
     const fmtX = (rev: number) =>
       formatRev ? formatRev(rev) : String(Math.round(rev));
 
+    const topPad = tags.length ? 40 : 14;
+
     const opts: uPlot.Options = {
       width: ref.current.clientWidth,
       height,
-      padding: [18, 16, 8, 8],
+      padding: [topPad, 16, 8, 8],
       plugins,
       cursor: {
         show: true,
