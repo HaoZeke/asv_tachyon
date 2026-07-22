@@ -819,8 +819,12 @@ export default function App() {
           index={index}
           benches={benches}
           state={state}
-          selected={multiplesSel.length ? multiplesSel : benches.slice(0, 4).map((b) => b.name)}
-          setSelected={setMultiplesSel}
+          selected={
+            multiplesSel.length
+              ? multiplesSel
+              : benches.slice(0, Math.min(4, benches.length)).map((b) => b.name)
+          }
+          setSelected={(names) => setMultiplesSel(names)}
           onOpen={openBench}
         />
       )}
