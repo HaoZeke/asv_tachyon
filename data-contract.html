@@ -82,6 +82,7 @@ data-aria-dark="Switch to auto color mode">
 <li><a class="reference internal" href="#graph-path-convention">Graph path convention</a></li>
 <li><a class="reference internal" href="#graph-json-shape">Graph JSON shape</a></li>
 <li><a class="reference internal" href="#regressions-json"><code class="docutils literal notranslate"><span class="pre">regressions.json</span></code></a></li>
+<li><a class="reference internal" href="#profiles-json-optional-sidecar"><code class="docutils literal notranslate"><span class="pre">profiles.json</span></code> (optional sidecar)</a></li>
 <li><a class="reference internal" href="#adapter-checklist-pytest-benchmark-etc">Adapter checklist (pytest-benchmark, etc.)</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
@@ -127,6 +128,10 @@ only need to emit the same shapes. No server-side API, no second result format.<
 </span><span data-line="5">  <span class="n">regressions</span><span class="o">.</span><span class="n">json</span>    <span class="c1"># optional — regression feed</span>
 </span><span data-line="6">  <span class="n">regressions</span><span class="o">.</span><span class="n">xml</span>     <span class="c1"># optional — Atom feed (stock ASV; ignored by UI)</span>
 </span><span data-line="7">  <span class="n">info</span><span class="o">.</span><span class="n">json</span>           <span class="c1"># optional — publish metadata</span>
+</span><span data-line="8">  <span class="n">profiles</span><span class="o">.</span><span class="n">json</span>       <span class="c1"># optional — Explore &quot;Open profile&quot; links</span>
+</span><span data-line="9">  <span class="n">profiles</span><span class="o">/</span>           <span class="c1"># optional — static HTML artifacts referenced above</span>
+</span><span data-line="10">    <span class="n">tachyon</span><span class="o">/</span>          <span class="c1"># from asv_bench_tachyon</span>
+</span><span data-line="11">    <span class="n">memray</span><span class="o">/</span>           <span class="c1"># from asv_bench_memray</span>
 </span></pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">asv-tachyon</span> <span class="pre">serve</span> <span class="pre">html_dir</span></code> overlays the SPA shell (<code class="docutils literal notranslate"><span class="pre">index.html</span></code> +
@@ -316,6 +321,38 @@ and param index applied.</p>
 </span></pre></div>
 </div>
 </section>
+<section id="profiles-json-optional-sidecar">
+<h2><code class="docutils literal notranslate"><span class="pre">profiles.json</span></code> (optional sidecar)<a class="headerlink" href="#profiles-json-optional-sidecar" title="Link to this heading">#</a></h2>
+<p>asv-tachyon Explore shows an <strong>Open profile</strong> link when a key matches the
+selected benchmark (prefer <code class="docutils literal notranslate"><span class="pre">bench&#64;rev</span></code>, fall back to bare <code class="docutils literal notranslate"><span class="pre">bench</span></code>).</p>
+<p>Producers are the <strong>metric plugins</strong>, not this UI package:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">asv_bench_tachyon</span></code> — <code class="docutils literal notranslate"><span class="pre">sample_*</span></code> metrics + Tachyon flamegraph HTML</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">asv_bench_memray</span></code> — <code class="docutils literal notranslate"><span class="pre">ray_*</span></code> peak memory + memray HTML</p></li>
+</ul>
+<p>Typical flow:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">ASV_BENCH_TACHYON_PROFILE</span><span class="o">=</span><span class="mi">1</span> <span class="n">asv</span> <span class="n">run</span> <span class="o">--</span><span class="n">bench</span> <span class="n">sample_</span>
+</span><span data-line="2"><span class="n">ASV_BENCH_MEMRAY_PROFILE</span><span class="o">=</span><span class="mi">1</span> <span class="n">asv</span> <span class="n">run</span> <span class="o">--</span><span class="n">bench</span> <span class="n">ray_</span>
+</span><span data-line="3"><span class="n">asv</span> <span class="n">publish</span>
+</span><span data-line="4"><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">asv_bench_tachyon</span> <span class="n">profiles</span> <span class="n">publish</span> <span class="o">--</span><span class="n">html</span><span class="o">-</span><span class="nb">dir</span> <span class="o">.</span><span class="n">asv</span><span class="o">/</span><span class="n">html</span>
+</span><span data-line="5"><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">asv_bench_memray</span> <span class="n">profiles</span> <span class="n">publish</span> <span class="o">--</span><span class="n">html</span><span class="o">-</span><span class="nb">dir</span> <span class="o">.</span><span class="n">asv</span><span class="o">/</span><span class="n">html</span>
+</span><span data-line="6"><span class="n">asv</span><span class="o">-</span><span class="n">tachyon</span> <span class="n">serve</span> <span class="o">.</span><span class="n">asv</span><span class="o">/</span><span class="n">html</span> <span class="o">--</span><span class="nb">open</span>
+</span></pre></div>
+</div>
+<p>Shape:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="p">{</span>
+</span><span data-line="2">  <span class="s2">&quot;paths&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="3">    <span class="s2">&quot;sample_hot_path@30&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/tachyon/sample_hot_path.html&quot;</span><span class="p">,</span>
+</span><span data-line="4">    <span class="s2">&quot;sample_hot_path&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/tachyon/sample_hot_path.html&quot;</span><span class="p">,</span>
+</span><span data-line="5">    <span class="s2">&quot;ray_alloc@30&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/memray/ray_alloc.html&quot;</span>
+</span><span data-line="6">  <span class="p">}</span>
+</span><span data-line="7"><span class="p">}</span>
+</span></pre></div>
+</div>
+<p>Paths are relative to <code class="docutils literal notranslate"><span class="pre">html_dir</span></code> and must be fetchable as static files.
+Both plugins <strong>merge</strong> into the same <code class="docutils literal notranslate"><span class="pre">profiles.json</span></code> (last publish wins on
+duplicate keys).</p>
+</section>
 <section id="adapter-checklist-pytest-benchmark-etc">
 <h2>Adapter checklist (pytest-benchmark, etc.)<a class="headerlink" href="#adapter-checklist-pytest-benchmark-etc" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
@@ -369,7 +406,7 @@ points.</p></li>
     </div>
   </div>
 </footer>
-      <script src="_static/documentation_options.js?v=f72ee37d"></script>
+      <script src="_static/documentation_options.js?v=cfd46aba"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/shibuya.js?v=50760d75"></script></body>
