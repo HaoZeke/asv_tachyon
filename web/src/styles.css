@@ -28,6 +28,16 @@
   --chart-axis: #8b9bb5;
   --chart-line: #2dd4bf;
   --chart-fill: rgba(45, 212, 191, 0.12);
+  /* Python source tokens (dark) */
+  --syn-kw: #7dd3fc;
+  --syn-builtin: #5eead4;
+  --syn-str: #86efac;
+  --syn-cmt: #6b7c96;
+  --syn-num: #fcd34d;
+  --syn-deco: #c4b5fd;
+  --syn-name: #eef3ff;
+  --syn-op: #94a3b8;
+  --syn-plain: #9aabc4;
 }
 
 [data-theme="light"] {
@@ -53,6 +63,16 @@
   --chart-axis: #64748b;
   --chart-line: #0d9488;
   --chart-fill: rgba(13, 148, 136, 0.1);
+  /* Python source tokens (light) */
+  --syn-kw: #0369a1;
+  --syn-builtin: #0f766e;
+  --syn-str: #15803d;
+  --syn-cmt: #94a3b8;
+  --syn-num: #b45309;
+  --syn-deco: #6d28d9;
+  --syn-name: #0f172a;
+  --syn-op: #64748b;
+  --syn-plain: #475569;
 }
 
 * { box-sizing: border-box; }
@@ -502,15 +522,79 @@ code, .mono { font-family: var(--mono); }
   background: var(--bg2);
 }
 .point-row code { color: var(--text-dim); }
-.source pre {
+/* highlight.js output; colors from --syn-* (data-theme dark/light) */
+.source .code-block,
+.code-block.hljs,
+.code-block {
   margin: 0;
   overflow: auto;
   max-height: 240px;
   font-family: var(--mono);
   font-size: 0.75rem;
   line-height: 1.45;
-  color: var(--text-dim);
+  color: var(--syn-plain);
   white-space: pre-wrap;
+  tab-size: 4;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+}
+.code-block-inner {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+  white-space: inherit;
+}
+.code-block .hljs-keyword,
+.code-block .hljs-selector-tag,
+.code-block .hljs-literal {
+  color: var(--syn-kw);
+  font-weight: 600;
+}
+.code-block .hljs-built_in,
+.code-block .hljs-type {
+  color: var(--syn-builtin);
+}
+.code-block .hljs-string,
+.code-block .hljs-attr,
+.code-block .hljs-symbol,
+.code-block .hljs-bullet,
+.code-block .hljs-addition {
+  color: var(--syn-str);
+}
+.code-block .hljs-comment,
+.code-block .hljs-quote,
+.code-block .hljs-deletion {
+  color: var(--syn-cmt);
+  font-style: italic;
+}
+.code-block .hljs-number,
+.code-block .hljs-regexp {
+  color: var(--syn-num);
+}
+.code-block .hljs-meta,
+.code-block .hljs-meta .hljs-keyword,
+.code-block .hljs-decorator {
+  color: var(--syn-deco);
+}
+.code-block .hljs-title,
+.code-block .hljs-title.function_,
+.code-block .hljs-title.class_,
+.code-block .hljs-section {
+  color: var(--syn-name);
+  font-weight: 600;
+}
+.code-block .hljs-params,
+.code-block .hljs-variable,
+.code-block .hljs-template-variable,
+.code-block .hljs-property {
+  color: var(--syn-plain);
+}
+.code-block .hljs-operator,
+.code-block .hljs-punctuation {
+  color: var(--syn-op);
 }
 
 .empty, .error, .loading {

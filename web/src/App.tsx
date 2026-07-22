@@ -60,6 +60,7 @@ import { ReportSubview } from "./components/ReportSubview";
 import { FilterChips, filterBenchesByType } from "./components/FilterChips";
 import { OverviewTiles } from "./components/OverviewTiles";
 import { CopyDeepLinkButton, EmptyState, PrintButton } from "./components/EmptyState";
+import { CodeBlock } from "./components/CodeBlock";
 
 function typeChip(t: string) {
   const k = t.toLowerCase();
@@ -1050,7 +1051,7 @@ export default function App() {
                     {bench.code && (
                       <div className="card card-pad source">
                         <h3>Source</h3>
-                        <pre>{bench.code}</pre>
+                        <CodeBlock code={bench.code} lang="python" />
                       </div>
                     )}
                     <div className="card card-pad">
