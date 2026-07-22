@@ -1,0 +1,166 @@
+# asv-studio.yml — template CI for an ASV project that publishes results
+# with asv-tachyon (static GH Pages) and optional PR compare comments.
+#
+# Copy into your repo as .github/workflows/asv-studio.yml and adjust:
+#   - ASV_ENV / matrix Python
+#   - pages branch or GitHub Pages artifact deploy
+#   - secrets / concurrency as needed
+#
+# Data contract stays static-hostable: index.json + graphs/** (+ optional
+# commits.json, profiles.json, regressions.json). No backend.
+
+name: asv-studio
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: asv-studio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Run benchmarks (nightly / main) and publish static tree
+  # ---------------------------------------------------------------------------
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install asv + tachyon
+        run: |
+          # Project deps first (so asv can import the package under test)
+          pip install -e .
+          pip install asv asv-tachyon
+          # Optional sample_* plugin if you use asv_bench_tachyon metrics
+          # pip install asv_bench_tachyon
+
+      - name: asv machine (CI identity)
+        run: |
+          # One stable machine name so graphs/ paths stay consistent across runs
+          asv machine --yes \
+            --machine github-actions \
+            --os "$(uname -s)" \
+            --arch "$(uname -m)" \
+            --cpu "gha" \
+            --ram "0"
+
+      - name: asv run
+        run: |
+          # Hash range: last few commits on main (tune for cost)
+          asv run HEAD~5..HEAD -v || asv run HASHFILE:new -v || asv run -v
+
+      - name: asv publish
+        run: |
+          # Writes .asv/html/index.json + graphs/** + regressions.json
+          asv publish
+
+      - name: Install asv-tachyon UI into html_dir
+        run: |
+          # Replaces legacy index.html; keeps all graph JSON
+          asv-tachyon install .asv/html
+
+      - name: Optional commit subjects sidecar
+        run: |
+          # commits.json: hash -> subject for Explore tooltips
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          html = Path(".asv/html")
+          idx = json.loads((html / "index.json").read_text())
+          by_hash = {}
+          by_rev = {}
+          for rev, h in idx.get("revision_to_hash", {}).items():
+              try:
+                  subj = subprocess.check_output(
+                      ["git", "log", "-1", "--format=%s", h], text=True
+                  ).strip()
+              except Exception:
+                  subj = ""
+              if subj:
+                  by_hash[h] = subj
+                  by_rev[str(rev)] = subj
+          (html / "commits.json").write_text(
+              json.dumps({"by_revision": by_rev, **by_hash}, indent=2) + "\n"
+          )
+          PY
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .asv/html
+
+  deploy-pages:
+    if: github.event_name != 'pull_request'
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------------------------------
+  # 2) PR path: asv-perch style table + asv-spyglass env-diff (optional)
+  # ---------------------------------------------------------------------------
+  pr-compare:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          pip install -e .
+          pip install asv asv-spyglass
+          # pip install asv-perch   # if available for PR comment tables
+
+      - name: Benchmark PR vs base (short)
+        run: |
+          # Example: run only affected benches or a small suite
+          asv continuous ${{ github.event.pull_request.base.sha }} HEAD || true
+
+      - name: Spyglass env-diff (if result JSONs exist)
+        run: |
+          # asv-spyglass env-diff on two result files — SBOM-style lock diff
+          # Adjust paths to your .asv/results layout
+          set +e
+          asv-spyglass env-diff --help >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "Wire asv-spyglass env-diff against two result JSON paths here."
+          fi
+
+      # Prefer asv-perch for markdown tables posted as a PR comment when configured.
+      # asv-tachyon itself stays out of the comment path — it is the static UI only.
+
+  # ---------------------------------------------------------------------------
+  # 3) Local spyglass recipe (documentation job — not required in CI)
+  # ---------------------------------------------------------------------------
+  # Locally, after `asv run` + `asv publish` + `asv-tachyon install .asv/html`:
+  #
+  #   asv-tachyon serve .asv/html --open
+  #   # Compare tab = spyglass ratios; Inventory tab = env lock diffs
+  #   # Optional: drop commits.json / profiles.json next to index.json
+  #
+  # Demo without a project:
+  #   asv-tachyon serve fixtures/sample_site --open
