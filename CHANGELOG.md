@@ -1,3 +1,13 @@
+## 0.5.0
+
+- Statistical depth: violin/strip/KDE distribution panel, mean/median/MAD, sample CI bands
+- Explore: brush zoom, dual-cursor delta, commit tooltips, tag markers, report subview
+- Heatmap, summary grid, multiples wall; filter chips with counts
+- Progressive overview tiles; higher-is-better / throughput-aware ratios
+- Mute list (localStorage + regressions-ignore.json); profile links
+- Adapters for Criterion and pytest-benchmark; asv-studio workflow template
+- Print stylesheet; empty/error recipes; SOTA design + showcase docs
+
 ## 0.4.0
 
 - Regressions view with interactive factor threshold.

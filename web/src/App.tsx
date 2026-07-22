@@ -37,7 +37,13 @@ import {
   type AppView,
 } from "./lib/asv";
 import { commitMessage, loadCommits, loadProfiles, loadSiblingSamples, profilePath, type CommitsMap, type ProfilesFile } from "./lib/sidecars";
-import { loadMuteList, saveMuteList, toggleMute } from "./lib/mute";
+import {
+  loadMuteList,
+  loadPublishedMuteList,
+  mergeMuteLists,
+  saveMuteList,
+  toggleMute,
+} from "./lib/mute";
 import { Chart } from "./components/Chart";
 import { InventoryView } from "./components/InventoryView";
 import { RegressionsView } from "./components/RegressionsView";
@@ -243,10 +249,11 @@ export default function App() {
         if (hash.sub === "report") setExploreSub("report");
         document.title = `${idx.project} · asv tachyon`;
 
-        const [reg, cm, pr] = await Promise.all([
+        const [reg, cm, pr, pubMute] = await Promise.all([
           loadRegressions(),
           loadCommits(),
           loadProfiles(),
+          loadPublishedMuteList(),
         ]);
         if (cancelled) return;
         if (reg == null) {
@@ -258,6 +265,7 @@ export default function App() {
         }
         setCommits(cm);
         setProfiles(pr);
+        setMuteList((local) => mergeMuteLists(local, pubMute));
         setHashReady(true);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
