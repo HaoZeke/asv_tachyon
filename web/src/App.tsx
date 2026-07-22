@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ALL_VIEWS,
   AsvIndex,
   BenchmarkInfo,
   EnvColumn,
@@ -7,6 +8,7 @@ import {
   NamedSeries,
   PairRow,
   RegressionEntry,
+  RichSeries,
   alignDualSeries,
   buildMultiEnvRows,
   buildPairRows,
@@ -14,9 +16,10 @@ import {
   defaultState,
   downsample,
   formatHash,
-  seriesColor,
+  fullCommitHash,
   graphParamStates,
   graphToPath,
+  isHigherBetter,
   loadGraph,
   loadIndex,
   loadRegressions,
@@ -25,15 +28,27 @@ import {
   parseHash,
   parseRegressions,
   prettyUnit,
+  richSeries,
   scalarSeries,
+  seriesColor,
   seriesStats,
+  tagMarkers,
   valueAtRevision,
+  type AppView,
 } from "./lib/asv";
-import { Chart, Sparkline } from "./components/Chart";
+import { commitMessage, loadCommits, loadProfiles, loadSiblingSamples, profilePath, type CommitsMap, type ProfilesFile } from "./lib/sidecars";
+import { loadMuteList, saveMuteList, toggleMute } from "./lib/mute";
+import { Chart } from "./components/Chart";
 import { InventoryView } from "./components/InventoryView";
 import { RegressionsView } from "./components/RegressionsView";
-
-type View = "overview" | "explore" | "compare" | "inventory" | "regressions";
+import { DistributionPanel } from "./components/DistributionPanel";
+import { HeatmapView } from "./components/HeatmapView";
+import { SummaryGrid } from "./components/SummaryGrid";
+import { MultiplesView } from "./components/MultiplesView";
+import { ReportSubview } from "./components/ReportSubview";
+import { FilterChips, filterBenchesByType } from "./components/FilterChips";
+import { OverviewTiles } from "./components/OverviewTiles";
+import { CopyDeepLinkButton, EmptyState, PrintButton } from "./components/EmptyState";
 
 function typeChip(t: string) {
   const k = t.toLowerCase();
@@ -121,24 +136,22 @@ export default function App() {
   const [index, setIndex] = useState<AsvIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<AppView>("overview");
   const [selected, setSelected] = useState<string | null>(null);
-  /** Explore / overview / revision-pair env filters — preserved across bench switches. */
   const [state, setState] = useState<Record<string, string>>({});
   const [series, setSeries] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [rich, setRich] = useState<RichSeries | null>(null);
   const [multiSeries, setMultiSeries] = useState<{ x: number[]; series: NamedSeries[] }>({
     x: [],
     series: [],
   });
-  /** Selected flat param indices for multi-series overlays (stable colors by index). */
   const [paramSel, setParamSel] = useState<number[] | null>(null);
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
+  const [sparkBands, setSparkBands] = useState<Record<string, { lo?: number | null; hi?: number | null }>>({});
   const [loadingGraph, setLoadingGraph] = useState(false);
-  // Pairwise / multi-env compare
   const [pairMode, setPairMode] = useState<"env" | "revision">("env");
   const [stateA, setStateA] = useState<Record<string, string>>({});
   const [stateB, setStateB] = useState<Record<string, string>>({});
-  /** graph_param_list indices: [baseline, contender1, contender2, …] */
   const [envSel, setEnvSel] = useState<number[]>([0, 1]);
   const [revA, setRevA] = useState<number | null>(null);
   const [revB, setRevB] = useState<number | null>(null);
@@ -158,13 +171,25 @@ export default function App() {
     if (saved === "light" || saved === "dark") return saved;
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   });
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [onlyRegressed, setOnlyRegressed] = useState(false);
+  const [machineOverlay, setMachineOverlay] = useState<string[]>([]);
+  const [machineSeries, setMachineSeries] = useState<{ x: number[]; series: NamedSeries[] } | null>(null);
+  const [commits, setCommits] = useState<CommitsMap | null>(null);
+  const [profiles, setProfiles] = useState<ProfilesFile | null>(null);
+  const [samples, setSamples] = useState<number[]>([]);
+  const [exploreSub, setExploreSub] = useState<"chart" | "report">("chart");
+  const [muteList, setMuteList] = useState<string[]>(() => loadMuteList());
+  const [showMuted, setShowMuted] = useState(false);
+  const [multiplesSel, setMultiplesSel] = useState<string[]>([]);
+  const [regressedNames, setRegressedNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("asv-tachyon-theme", theme);
   }, [theme]);
 
-  // Initial load: index + regressions + apply URL hash
+  // Initial load
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -175,7 +200,6 @@ export default function App() {
         const d = defaultState(idx);
         const hash = parseHash();
         const filters = { ...d, ...(hash.filters || {}) };
-        // only keep keys that exist in params
         const clean: Record<string, string> = {};
         for (const k of Object.keys(idx.params || {})) {
           clean[k] = filters[k] ?? d[k] ?? (idx.params[k]?.[0] ?? "");
@@ -199,8 +223,8 @@ export default function App() {
           setRevA(revs[Math.max(0, revs.length - 6)]);
           setRevB(revs[revs.length - 1]);
         }
-        if (hash.view && ["overview", "explore", "compare", "inventory", "regressions"].includes(hash.view)) {
-          setView(hash.view as View);
+        if (hash.view && (ALL_VIEWS as readonly string[]).includes(hash.view)) {
+          setView(hash.view as AppView);
         }
         if (hash.bench && idx.benchmarks[hash.bench]) {
           setSelected(hash.bench);
@@ -212,9 +236,18 @@ export default function App() {
         }
         if (hash.pairMode) setPairMode(hash.pairMode);
         if (hash.params) setParamSel(hash.params);
+        if (hash.types) setTypeFilters(hash.types);
+        if (hash.onlyRegressed) setOnlyRegressed(true);
+        if (hash.machines?.length) setMachineOverlay(hash.machines);
+        else if (idx.params.machine?.length) setMachineOverlay([clean.machine || idx.params.machine[0]]);
+        if (hash.sub === "report") setExploreSub("report");
         document.title = `${idx.project} · asv tachyon`;
 
-        const reg = await loadRegressions();
+        const [reg, cm, pr] = await Promise.all([
+          loadRegressions(),
+          loadCommits(),
+          loadProfiles(),
+        ]);
         if (cancelled) return;
         if (reg == null) {
           setRegMissing(true);
@@ -223,6 +256,8 @@ export default function App() {
           setRegMissing(false);
           setRegressions(parseRegressions(reg));
         }
+        setCommits(cm);
+        setProfiles(pr);
         setHashReady(true);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -233,7 +268,7 @@ export default function App() {
     };
   }, []);
 
-  // Write URL hash when key explore/compare state changes (after init)
+  // URL hash write
   useEffect(() => {
     if (!hashReady || !index) return;
     const next = formatHash({
@@ -244,13 +279,20 @@ export default function App() {
       factor: view === "regressions" ? regFactor : factor,
       envs: pairMode === "env" ? envSel : undefined,
       pairMode: view === "compare" ? pairMode : undefined,
+      types: typeFilters.length ? typeFilters : undefined,
+      onlyRegressed: onlyRegressed || undefined,
+      machines: machineOverlay.length > 1 ? machineOverlay : undefined,
+      sub: view === "explore" && exploreSub === "report" ? "report" : undefined,
     });
     if (next !== window.location.hash) {
       history.replaceState(null, "", next || window.location.pathname + window.location.search);
     }
-  }, [hashReady, index, view, selected, state, paramSel, factor, regFactor, envSel, pairMode]);
+  }, [
+    hashReady, index, view, selected, state, paramSel, factor, regFactor,
+    envSel, pairMode, typeFilters, onlyRegressed, machineOverlay, exploreSub,
+  ]);
 
-  const benches = useMemo(() => {
+  const benchesAll = useMemo(() => {
     if (!index) return [] as BenchmarkInfo[];
     const q = query.trim().toLowerCase();
     return Object.values(index.benchmarks)
@@ -258,44 +300,98 @@ export default function App() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [index, query]);
 
+  const benchesTyped = useMemo(
+    () => filterBenchesByType(benchesAll, typeFilters),
+    [benchesAll, typeFilters],
+  );
+
+  const benches = useMemo(() => {
+    if (!onlyRegressed) return benchesTyped;
+    return benchesTyped.filter((b) => regressedNames.has(b.name));
+  }, [benchesTyped, onlyRegressed, regressedNames]);
+
   const envColumns: EnvColumn[] = useMemo(
     () => (index ? graphParamStates(index) : []),
     [index],
   );
 
-  // Sparklines for overview (scalar / averaged)
+  const machineNames = useMemo(
+    () => (index?.params?.machine ? [...index.params.machine] : []),
+    [index],
+  );
+
+  // Sparklines + regressed set for overview
   useEffect(() => {
     if (!index || !Object.keys(state).length) return;
     let cancelled = false;
     (async () => {
       const next: Record<string, number[]> = {};
+      const bands: Record<string, { lo?: number | null; hi?: number | null }> = {};
+      const regressed = new Set<string>();
       await Promise.all(
         Object.keys(index.benchmarks).map(async (name) => {
           try {
             const pts = await loadGraph(graphToPath(name, state));
-            const s = scalarSeries(pts);
-            next[name] = downsample(s.x, s.y, 28).y;
+            const r = richSeries(pts);
+            next[name] = downsample(r.x, r.y, 28).y;
+            if (r.lo.length && r.hi.length) {
+              bands[name] = {
+                lo: r.lo[r.lo.length - 1],
+                hi: r.hi[r.hi.length - 1],
+              };
+            }
+            if (r.y.length >= 2) {
+              const prev = r.y[r.y.length - 2];
+              const last = r.y[r.y.length - 1];
+              const hib = isHigherBetter(index.benchmarks[name]);
+              if (prev && last) {
+                const worse = hib ? last < prev / 1.05 : last > prev * 1.05;
+                if (worse) regressed.add(name);
+              }
+            }
           } catch {
             next[name] = [];
           }
         }),
       );
-      if (!cancelled) setSparks(next);
+      if (!cancelled) {
+        setSparks(next);
+        setSparkBands(bands);
+        setRegressedNames(regressed);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [index, state]);
 
-  // Explore graph: multi-series when benchmark has params
+  // Explore graph
   useEffect(() => {
     if (!index || !selected) return;
     setLoadingGraph(true);
     const bench = index.benchmarks[selected];
     const combos = paramCombos(bench);
     const hasParams = (bench.params || []).length > 0;
-    loadGraph(graphToPath(selected, state))
-      .then((pts) => {
+    const path = graphToPath(selected, state);
+    loadGraph(path)
+      .then(async (pts) => {
+        const r = richSeries(pts);
+        setRich(r);
+        // samples: from last rev extended point, or sibling samples file
+        let sm: number[] = [];
+        if (r.x.length) {
+          const lastRev = r.x[r.x.length - 1];
+          sm = r.samplesByRev[lastRev] || [];
+        }
+        if (!sm.length) {
+          const sibling = await loadSiblingSamples(path);
+          if (sibling && r.x.length) {
+            const lastRev = r.x[r.x.length - 1];
+            sm = sibling[String(lastRev)] || sibling[lastRev] || [];
+          }
+        }
+        setSamples(sm);
+
         if (hasParams) {
           const valid = new Set(combos.map((c) => c.index));
           const clamped =
@@ -307,13 +403,12 @@ export default function App() {
             : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
           const multi = multiSeriesFromGraph(pts, combos, sel);
           setMultiSeries(multi);
-          // scalar fallback = first selected series (for stats / recent)
           const first = multi.series[0];
           const y = (first?.y || []).map((v) => (v == null ? NaN : v)).filter((v) => Number.isFinite(v));
           const x = multi.x.filter((_, i) => first && first.y[i] != null);
           setSeries({ x, y });
         } else {
-          const s = scalarSeries(pts);
+          const s = { x: r.x, y: r.y };
           setSeries(s);
           setMultiSeries({
             x: s.x,
@@ -331,11 +426,53 @@ export default function App() {
       .catch(() => {
         setSeries({ x: [], y: [] });
         setMultiSeries({ x: [], series: [] });
+        setRich(null);
+        setSamples([]);
       })
       .finally(() => setLoadingGraph(false));
   }, [index, selected, state, paramSel]);
 
-  // Compare values: pairwise or multi-env
+  // Multi-machine overlay for Explore
+  useEffect(() => {
+    if (!index || !selected || machineOverlay.length < 2) {
+      setMachineSeries(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const seriesList: NamedSeries[] = [];
+      let xs: number[] = [];
+      for (let mi = 0; mi < machineOverlay.length; mi++) {
+        const m = machineOverlay[mi];
+        const st = { ...state, machine: m };
+        try {
+          const s = scalarSeries(await loadGraph(graphToPath(selected, st)));
+          if (!xs.length) xs = s.x;
+          const map = new Map(s.x.map((x, i) => [x, s.y[i]]));
+          const y = xs.map((x) => map.get(x) ?? null);
+          seriesList.push({
+            index: mi,
+            label: m,
+            color: seriesColor(mi),
+            y,
+          });
+        } catch {
+          seriesList.push({
+            index: mi,
+            label: m,
+            color: seriesColor(mi),
+            y: xs.map(() => null),
+          });
+        }
+      }
+      if (!cancelled) setMachineSeries({ x: xs, series: seriesList });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [index, selected, state, machineOverlay]);
+
+  // Compare values
   useEffect(() => {
     if (!index || view !== "compare") return;
     let cancelled = false;
@@ -366,7 +503,6 @@ export default function App() {
         return;
       }
 
-      // multi-env from envSel
       const cols = envSel
         .map((i) => envColumns[i])
         .filter((c): c is EnvColumn => !!c);
@@ -394,7 +530,6 @@ export default function App() {
         if (buckets[0]) setPairValsA(buckets[0]);
         if (buckets[1]) setPairValsB(buckets[1]);
         else setPairValsB({});
-        // keep stateA/stateB in sync with selection for inventory + overlay
         if (cols[0]) setStateA(cols[0].state);
         if (cols[1]) setStateB(cols[1].state);
         setPairLoading(false);
@@ -405,11 +540,10 @@ export default function App() {
     };
   }, [index, view, pairMode, state, revA, revB, envSel, envColumns]);
 
-  /** Open a benchmark without resetting machine/branch/python filters. */
-  const openBench = useCallback((name: string) => {
+  const openBench = useCallback((name: string, paramIdx?: number) => {
     setSelected(name);
+    if (paramIdx != null) setParamSel([paramIdx]);
     setView("explore");
-    // Intentionally do NOT touch `state` / pair state — filters stay put.
   }, []);
 
   const openFromRegression = useCallback(
@@ -431,7 +565,7 @@ export default function App() {
           : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
       if (base.includes(idx)) {
         const next = base.filter((i) => i !== idx);
-        return next.length ? next : base; // keep at least one
+        return next.length ? next : base;
       }
       return [...base, idx].sort((a, b) => a - b);
     });
@@ -447,16 +581,22 @@ export default function App() {
     });
   }
 
+  function handleToggleMute(bench: string) {
+    setMuteList((prev) => {
+      const next = toggleMute(prev, bench);
+      saveMuteList(next);
+      return next;
+    });
+  }
+
   if (error) {
     return (
       <div className="main">
         <div className="error">
           <strong>Could not load ASV data.</strong>
           <p>{error}</p>
-          <p className="muted">
-            Run <code>asv publish</code>, then <code>asv-tachyon serve .asv/html</code>.
-          </p>
         </div>
+        <EmptyState kind="no-index" />
       </div>
     );
   }
@@ -484,11 +624,18 @@ export default function App() {
       : combos.slice(0, Math.min(3, combos.length)).map((c) => c.index);
   })();
 
+  const benchMeta = Object.fromEntries(
+    Object.values(index.benchmarks).map((b) => [
+      b.name,
+      { unit: b.unit, type: b.type, less_is_better: b.less_is_better },
+    ]),
+  );
+
   const multiRows: MultiEnvRow[] =
     pairMode === "env" && multiEnvVals.length >= 1
       ? buildMultiEnvRows(
           benches.map((b) => b.name),
-          Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+          benchMeta,
           multiEnvVals[0] || {},
           multiEnvVals.slice(1),
           { factor, onlyChanged, sort: sortPair },
@@ -499,9 +646,42 @@ export default function App() {
     .map((i) => envColumns[i])
     .filter((c): c is EnvColumn => !!c);
 
+  const tags = tagMarkers(index);
+  const lastRev = series.x.length ? series.x[series.x.length - 1] : null;
+  const prof = selected && lastRev != null ? profilePath(profiles, selected, lastRev) : selected ? profilePath(profiles, selected) : null;
+
+  const chartX = machineSeries && machineSeries.series.length > 1 ? machineSeries.x : multiSeries.x;
+  const bandOk =
+    !!rich &&
+    rich.lo.length === chartX.length &&
+    rich.hi.length === chartX.length &&
+    !(machineSeries && machineSeries.series.length > 1);
+
+  const chartSeries =
+    machineSeries && machineSeries.series.length > 1
+      ? machineSeries.series.map((s) => ({ label: s.label, y: s.y, color: s.color }))
+      : multiSeries.series.map((s) => ({
+          label: s.label,
+          y: s.y,
+          color: s.color,
+          lo: s.index === 0 && bandOk ? rich!.lo : undefined,
+          hi: s.index === 0 && bandOk ? rich!.hi : undefined,
+        }));
+
+  const navViews: { id: AppView; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "explore", label: "Explore" },
+    { id: "heatmap", label: "Heatmap" },
+    { id: "grid", label: "Grid" },
+    { id: "multiples", label: "Multiples" },
+    { id: "compare", label: "Compare" },
+    { id: "regressions", label: "Regressions" },
+    { id: "inventory", label: "Inventory" },
+  ];
+
   return (
     <div className="app">
-      <header className="topbar">
+      <header className="topbar no-print-controls">
         <div className="brand">
           <div className="brand-mark">τ</div>
           <div className="brand-text">
@@ -514,26 +694,17 @@ export default function App() {
           </div>
         </div>
 
-        <div className="seg" role="tablist">
-          <button type="button" className={view === "overview" ? "active" : ""} onClick={() => setView("overview")}>
-            Overview
-          </button>
-          <button type="button" className={view === "explore" ? "active" : ""} onClick={() => setView("explore")}>
-            Explore
-          </button>
-          <button type="button" className={view === "compare" ? "active" : ""} onClick={() => setView("compare")}>
-            Compare
-          </button>
-          <button
-            type="button"
-            className={view === "regressions" ? "active" : ""}
-            onClick={() => setView("regressions")}
-          >
-            Regressions
-          </button>
-          <button type="button" className={view === "inventory" ? "active" : ""} onClick={() => setView("inventory")}>
-            Inventory
-          </button>
+        <div className="seg seg-scroll" role="tablist">
+          {navViews.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className={view === v.id ? "active" : ""}
+              onClick={() => setView(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
 
         <div className="search-wrap">
@@ -547,6 +718,8 @@ export default function App() {
         </div>
 
         <div className="top-actions">
+          <CopyDeepLinkButton />
+          <PrintButton />
           <ThemeToggle theme={theme} onToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} />
         </div>
       </header>
@@ -581,13 +754,22 @@ export default function App() {
             ))}
           </div>
 
-          <div className="bento">
-            <div className="card hero">
+          <FilterChips
+            benches={benchesAll}
+            types={typeFilters}
+            setTypes={setTypeFilters}
+            onlyRegressed={onlyRegressed}
+            setOnlyRegressed={setOnlyRegressed}
+            regressedCount={regressedNames.size}
+          />
+
+          <div className="bento" style={{ marginTop: "0.85rem" }}>
+            <div className="card hero fade-in">
               <div>
                 <h2>Watch the curves, not the chrome</h2>
                 <p>
                   Overview tiles stream sparklines from the published graph tree. Explore for full
-                  charts and param overlays. Light and dark themes stick to your preference.
+                  charts, distributions, and param overlays. Copy deep link shares the hash.
                   Filters are preserved when you switch benchmarks.
                 </p>
               </div>
@@ -598,40 +780,69 @@ export default function App() {
               </div>
             </div>
 
-            {benches.map((b) => {
-              const y = sparks[b.name] || [];
-              const st = seriesStats(y);
-              const delta = st.change == null ? null : st.change >= 0 ? `+${(st.change * 100).toFixed(1)}%` : `${(st.change * 100).toFixed(1)}%`;
-              return (
-                <div key={b.name} className="card tile" onClick={() => openBench(b.name)}>
-                  <div className="chip-row">
-                    <span className={`chip ${typeChip(b.type)}`}>{b.type}</span>
-                    <span className="chip">{b.unit}</span>
-                  </div>
-                  <div className="name">{b.name}</div>
-                  {y.length > 1 ? <Sparkline y={y} width={180} height={40} /> : <div className="spark" />}
-                  <div className="foot">
-                    <span>{st.latest != null ? prettyUnit(st.latest, b.unit) : "—"}</span>
-                    {delta && (
-                      <span className={st.change! > 0.05 ? "delta-up" : st.change! < -0.05 ? "delta-down" : "muted"}>
-                        {delta}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {!benches.length ? (
+              <div style={{ gridColumn: "span 12" }}>
+                <EmptyState kind="no-benches" />
+              </div>
+            ) : (
+              <OverviewTiles
+                benches={benches}
+                sparks={sparks}
+                sparkBands={sparkBands}
+                onOpen={openBench}
+              />
+            )}
           </div>
         </div>
       )}
 
+      {view === "heatmap" && (
+        <HeatmapView
+          index={index}
+          benches={benches}
+          state={state}
+          onOpen={openBench}
+        />
+      )}
+
+      {view === "grid" && (
+        <SummaryGrid
+          index={index}
+          benches={benches}
+          state={state}
+          onOpen={openBench}
+        />
+      )}
+
+      {view === "multiples" && (
+        <MultiplesView
+          index={index}
+          benches={benches}
+          state={state}
+          selected={multiplesSel.length ? multiplesSel : benches.slice(0, 4).map((b) => b.name)}
+          setSelected={setMultiplesSel}
+          onOpen={openBench}
+        />
+      )}
+
       {view === "explore" && (
         <div className="shell">
-          <aside className="sidebar">
+          <aside className="sidebar no-print-controls">
             <h3 style={{ margin: "0 0 0.75rem", color: "var(--text-faint)", fontSize: "0.75rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
               Library
             </h3>
-            <div className="bench-list">
+            <FilterChips
+              benches={benchesAll}
+              types={typeFilters}
+              setTypes={setTypeFilters}
+              machines={machineNames}
+              machineSel={machineOverlay}
+              setMachineSel={setMachineOverlay}
+              onlyRegressed={onlyRegressed}
+              setOnlyRegressed={setOnlyRegressed}
+              regressedCount={regressedNames.size}
+            />
+            <div className="bench-list" style={{ marginTop: "0.65rem" }}>
               {benches.map((b) => (
                 <button
                   key={b.name}
@@ -656,7 +867,16 @@ export default function App() {
                       <span className={`chip ${typeChip(bench.type)}`}>{bench.type}</span>{" "}
                       <span className="chip">{bench.unit}</span>
                       {hasParams && <span className="chip">{combos.length} param series</span>}
+                      {isHigherBetter(bench) && <span className="chip ok">higher is better</span>}
                     </p>
+                  </div>
+                  <div className="seg">
+                    <button type="button" className={exploreSub === "chart" ? "active" : ""} onClick={() => setExploreSub("chart")}>
+                      Chart
+                    </button>
+                    <button type="button" className={exploreSub === "report" ? "active" : ""} onClick={() => setExploreSub("report")}>
+                      Report
+                    </button>
                   </div>
                 </div>
                 <div className="filters">
@@ -708,42 +928,75 @@ export default function App() {
                   <div className="stat"><div className="k">Δ first→last</div><div className={"v " + (stats.change != null && stats.change > 0.05 ? "delta-up" : stats.change != null && stats.change < -0.05 ? "delta-down" : "")}>{stats.change != null ? `${(stats.change * 100).toFixed(1)}%` : "—"}</div></div>
                 </div>
                 <div className="detail-grid">
-                  <div className="card chart-card">
-                    {loadingGraph ? (
-                      <p className="muted">Loading graph…</p>
-                    ) : multiSeries.series.length > 0 ? (
-                      <Chart
-                        x={multiSeries.x}
-                        unit={unit}
-                        series={multiSeries.series.map((s) => ({
-                          label: s.label,
-                          y: s.y,
-                          color: s.color,
-                        }))}
-                        showLegend={multiSeries.series.length > 1}
-                      />
-                    ) : (
-                      <Chart x={series.x} y={series.y} unit={unit} />
-                    )}
-                    {multiSeries.x.length > 0 && (
-                      <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.82rem" }}>
-                        last <code>{commitHash(index, multiSeries.x[multiSeries.x.length - 1])}</code>
-                        {index.show_commit_url && (
-                          <> · <a href={index.show_commit_url + commitHash(index, multiSeries.x[multiSeries.x.length - 1])} target="_blank" rel="noreferrer">open commit</a></>
-                        )}
-                      </p>
+                  <div>
+                    <div className="card chart-card">
+                      {loadingGraph ? (
+                        <p className="muted">Loading graph…</p>
+                      ) : chartX.length === 0 ? (
+                        <EmptyState kind="empty-graphs" />
+                      ) : (
+                        <Chart
+                          x={chartX}
+                          unit={unit}
+                          series={chartSeries}
+                          showLegend={chartSeries.length > 1}
+                          lo={rich?.lo}
+                          hi={rich?.hi}
+                          tags={tags}
+                          formatRev={(rev) => commitHash(index, rev)}
+                          commitMessage={(rev) =>
+                            commitMessage(commits, rev, fullCommitHash(index, rev))
+                          }
+                          showCommitUrl={index.show_commit_url}
+                          fullHash={(rev) => fullCommitHash(index, rev)}
+                          brushZoom
+                          dualCursor
+                        />
+                      )}
+                      {chartX.length > 0 && (
+                        <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.82rem" }}>
+                          last <code>{commitHash(index, chartX[chartX.length - 1])}</code>
+                          {index.show_commit_url && (
+                            <> · <a href={index.show_commit_url + (fullCommitHash(index, chartX[chartX.length - 1]) || commitHash(index, chartX[chartX.length - 1]))} target="_blank" rel="noreferrer">open commit</a></>
+                          )}
+                          {prof && (
+                            <> · <a href={prof} target="_blank" rel="noreferrer">Open profile</a></>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    {samples.length > 0 && (
+                      <div style={{ marginTop: "0.75rem" }}>
+                        <DistributionPanel
+                          samples={samples}
+                          unit={unit}
+                          revision={lastRev ?? undefined}
+                        />
+                      </div>
                     )}
                   </div>
                   <div className="side-panel">
+                    {exploreSub === "report" && (
+                      <ReportSubview
+                        index={index}
+                        bench={bench}
+                        series={series}
+                        samples={samples}
+                        lastRev={lastRev}
+                      />
+                    )}
                     <div className="card card-pad">
                       <h3>Recent points</h3>
                       <div className="point-list">
-                        {series.x.slice(-8).reverse().map((rev, i) => (
-                          <div className="point-row" key={rev}>
-                            <code>{commitHash(index, rev)}</code>
-                            <span className="mono">{prettyUnit(series.y[series.y.length - 1 - i], unit)}</span>
-                          </div>
-                        ))}
+                        {series.x.slice(-8).reverse().map((rev, i) => {
+                          const msg = commitMessage(commits, rev, fullCommitHash(index, rev));
+                          return (
+                            <div className="point-row" key={rev} title={msg || undefined}>
+                              <code>{commitHash(index, rev)}</code>
+                              <span className="mono">{prettyUnit(series.y[series.y.length - 1 - i], unit)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                     {bench.code && (
@@ -760,7 +1013,7 @@ export default function App() {
                         ))}
                       </div>
                       <p className="muted" style={{ margin: "0.55rem 0 0", fontSize: "0.75rem" }}>
-                        Filters stay when you pick another benchmark. Shareable via URL hash.
+                        Filters stay when you pick another benchmark. Shareable via URL hash (Copy link).
                       </p>
                     </div>
                   </div>
@@ -788,7 +1041,7 @@ export default function App() {
                 (() => {
                   const rows = buildMultiEnvRows(
                     benches.map((b) => b.name),
-                    Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                    benchMeta,
                     multiEnvVals[0] || {},
                     multiEnvVals.slice(1),
                     { factor, onlyChanged: false },
@@ -808,7 +1061,7 @@ export default function App() {
                 (() => {
                   const rows = buildPairRows(
                     benches.map((b) => b.name),
-                    Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                    benchMeta,
                     pairValsA,
                     pairValsB,
                     { factor, onlyChanged: false },
@@ -825,7 +1078,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="card pair-toolbar">
+          <div className="card pair-toolbar no-print-controls">
             <div className="seg mode-seg">
               <button type="button" className={pairMode === "env" ? "active" : ""} onClick={() => setPairMode("env")}>
                 Env columns
@@ -856,10 +1109,6 @@ export default function App() {
                     );
                   })}
                 </div>
-                <p className="muted" style={{ margin: 0, fontSize: "0.75rem", width: "100%" }}>
-                  First selected env is the baseline; others are contender columns (ratio vs baseline).
-                  Click to toggle. Order follows selection order.
-                </p>
               </div>
             ) : (
               <>
@@ -1010,7 +1259,7 @@ export default function App() {
                     <tbody>
                       {buildPairRows(
                         benches.map((b) => b.name),
-                        Object.fromEntries(benches.map((b) => [b.name, { unit: b.unit, type: b.type }])),
+                        benchMeta,
                         pairValsA,
                         pairValsB,
                         { factor, onlyChanged, sort: sortPair },
@@ -1069,6 +1318,10 @@ export default function App() {
           factor={regFactor}
           setFactor={setRegFactor}
           onOpen={openFromRegression}
+          muteList={muteList}
+          onToggleMute={handleToggleMute}
+          showMuted={showMuted}
+          setShowMuted={setShowMuted}
         />
       )}
 
