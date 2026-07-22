@@ -105,33 +105,97 @@ function bandFillPlugin(
   };
 }
 
+/** Prefer final releases over rc/dev/alpha when thinning crowded labels. */
+function tagLabelPriority(name: string): number {
+  const n = name.toLowerCase();
+  if (/rc\d*|a(lpha)?\d*|b(eta)?\d*|dev|pre/.test(n)) return 0;
+  // x.y.0 or x.y style stable
+  if (/\d+\.\d+(\.0)?$/.test(n.replace(/^v/, ""))) return 2;
+  return 1;
+}
+
+function shortTagLabel(name: string): string {
+  // v1.23.0 -> 1.23; keep rc/dev markers compact
+  let s = name.replace(/^v/i, "");
+  if (s.length > 10) s = s.slice(0, 9) + "…";
+  return s;
+}
+
+/**
+ * Draw all tag verticals; label only a non-colliding subset (min px gap).
+ * Re-runs on zoom so denser labels appear when the range shrinks.
+ */
 function tagsPlugin(tags: TagMarker[]): uPlot.Plugin {
+  const MIN_LABEL_PX = 52;
+
   return {
     hooks: {
       draw: [
         (u) => {
           if (!tags.length) return;
+          const xMin = u.scales.x.min ?? -Infinity;
+          const xMax = u.scales.x.max ?? Infinity;
+          const visible = tags
+            .filter((t) => t.revision >= xMin && t.revision <= xMax)
+            .map((t) => ({
+              ...t,
+              px: u.valToPos(t.revision, "x", true),
+              pri: tagLabelPriority(t.name),
+            }))
+            .sort((a, b) => a.px - b.px);
+
+          if (!visible.length) return;
+
           const ctx = u.ctx;
           const y0 = u.bbox.top;
           const y1 = u.bbox.top + u.bbox.height;
           ctx.save();
-          ctx.font = "10px JetBrains Mono, monospace";
-          ctx.textAlign = "center";
-          for (const t of tags) {
-            if (t.revision < (u.scales.x.min ?? -Infinity) || t.revision > (u.scales.x.max ?? Infinity))
-              continue;
-            const px = u.valToPos(t.revision, "x", true);
-            ctx.strokeStyle = "rgba(148,163,184,0.45)";
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
+
+          // 1) faint lines for every tag in range
+          ctx.strokeStyle = "rgba(148,163,184,0.28)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 4]);
+          for (const t of visible) {
             ctx.beginPath();
-            ctx.moveTo(px, y0);
-            ctx.lineTo(px, y1);
+            ctx.moveTo(t.px, y0);
+            ctx.lineTo(t.px, y1);
             ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = cssVar("--text-faint", "#6b7c96");
-            ctx.fillText(t.name, px, y0 + 10);
           }
+          ctx.setLineDash([]);
+
+          // 2) pick labels: greedy left-to-right with priority boost for stables
+          //    First pass: high-priority tags; second: fill remaining gaps
+          const labeled: { px: number; name: string }[] = [];
+          const tryPlace = (cands: typeof visible) => {
+            for (const t of cands) {
+              if (labeled.some((L) => Math.abs(L.px - t.px) < MIN_LABEL_PX)) continue;
+              labeled.push({ px: t.px, name: shortTagLabel(t.name) });
+            }
+          };
+          tryPlace(visible.filter((t) => t.pri >= 2).sort((a, b) => a.px - b.px));
+          tryPlace(visible.filter((t) => t.pri === 1));
+          tryPlace(visible.filter((t) => t.pri === 0));
+          labeled.sort((a, b) => a.px - b.px);
+
+          // 3) rotated labels just above the plot (readable, non-overlapping)
+          ctx.font = "10px JetBrains Mono, monospace";
+          ctx.fillStyle = cssVar("--text-faint", "#6b7c96");
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          for (const L of labeled) {
+            ctx.save();
+            ctx.translate(L.px + 2, y0 + 4);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(L.name, 0, 0);
+            ctx.restore();
+            // short tick at top so the line is still tied to the label
+            ctx.strokeStyle = "rgba(148,163,184,0.55)";
+            ctx.beginPath();
+            ctx.moveTo(L.px, y0);
+            ctx.lineTo(L.px, y0 + 6);
+            ctx.stroke();
+          }
+
           ctx.restore();
         },
       ],
