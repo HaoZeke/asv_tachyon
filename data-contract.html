@@ -128,7 +128,7 @@ only need to emit the same shapes. No server-side API, no second result format.<
 </span><span data-line="5">  <span class="n">regressions</span><span class="o">.</span><span class="n">json</span>    <span class="c1"># optional — regression feed</span>
 </span><span data-line="6">  <span class="n">regressions</span><span class="o">.</span><span class="n">xml</span>     <span class="c1"># optional — Atom feed (stock ASV; ignored by UI)</span>
 </span><span data-line="7">  <span class="n">info</span><span class="o">.</span><span class="n">json</span>           <span class="c1"># optional — publish metadata</span>
-</span><span data-line="8">  <span class="n">profiles</span><span class="o">.</span><span class="n">json</span>       <span class="c1"># optional — Explore &quot;Open profile&quot; links</span>
+</span><span data-line="8">  <span class="n">profiles</span><span class="o">.</span><span class="n">json</span>       <span class="c1"># optional — Explore "Open profile" links</span>
 </span><span data-line="9">  <span class="n">profiles</span><span class="o">/</span>           <span class="c1"># optional — static HTML artifacts referenced above</span>
 </span><span data-line="10">    <span class="n">tachyon</span><span class="o">/</span>          <span class="c1"># from asv_bench_tachyon</span>
 </span><span data-line="11">    <span class="n">memray</span><span class="o">/</span>           <span class="c1"># from asv_bench_memray</span>
@@ -196,38 +196,38 @@ only need to emit the same shapes. No server-side API, no second result format.<
 </ul>
 <p>Example (truncated):</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="p">{</span>
-</span><span data-line="2">  <span class="s2">&quot;project&quot;</span><span class="p">:</span> <span class="s2">&quot;asv-demo&quot;</span><span class="p">,</span>
-</span><span data-line="3">  <span class="s2">&quot;hash_length&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
-</span><span data-line="4">  <span class="s2">&quot;revision_to_hash&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="s2">&quot;abc…&quot;</span><span class="p">,</span> <span class="s2">&quot;2&quot;</span><span class="p">:</span> <span class="s2">&quot;def…&quot;</span> <span class="p">},</span>
-</span><span data-line="5">  <span class="s2">&quot;revision_to_date&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="mi">1700086400000</span><span class="p">,</span> <span class="s2">&quot;2&quot;</span><span class="p">:</span> <span class="mi">1700172800000</span> <span class="p">},</span>
-</span><span data-line="6">  <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="7">    <span class="s2">&quot;branch&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;main&quot;</span><span class="p">],</span>
-</span><span data-line="8">    <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;cheetah&quot;</span><span class="p">],</span>
-</span><span data-line="9">    <span class="s2">&quot;python&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;3.12&quot;</span><span class="p">,</span> <span class="s2">&quot;3.13&quot;</span><span class="p">]</span>
+</span><span data-line="2">  <span class="s2">"project"</span><span class="p">:</span> <span class="s2">"asv-demo"</span><span class="p">,</span>
+</span><span data-line="3">  <span class="s2">"hash_length"</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+</span><span data-line="4">  <span class="s2">"revision_to_hash"</span><span class="p">:</span> <span class="p">{</span> <span class="s2">"1"</span><span class="p">:</span> <span class="s2">"abc…"</span><span class="p">,</span> <span class="s2">"2"</span><span class="p">:</span> <span class="s2">"def…"</span> <span class="p">},</span>
+</span><span data-line="5">  <span class="s2">"revision_to_date"</span><span class="p">:</span> <span class="p">{</span> <span class="s2">"1"</span><span class="p">:</span> <span class="mi">1700086400000</span><span class="p">,</span> <span class="s2">"2"</span><span class="p">:</span> <span class="mi">1700172800000</span> <span class="p">},</span>
+</span><span data-line="6">  <span class="s2">"params"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="7">    <span class="s2">"branch"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"main"</span><span class="p">],</span>
+</span><span data-line="8">    <span class="s2">"machine"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"cheetah"</span><span class="p">],</span>
+</span><span data-line="9">    <span class="s2">"python"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"3.12"</span><span class="p">,</span> <span class="s2">"3.13"</span><span class="p">]</span>
 </span><span data-line="10">  <span class="p">},</span>
-</span><span data-line="11">  <span class="s2">&quot;graph_param_list&quot;</span><span class="p">:</span> <span class="p">[</span>
-</span><span data-line="12">    <span class="p">{</span><span class="s2">&quot;branch&quot;</span><span class="p">:</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span> <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="s2">&quot;cheetah&quot;</span><span class="p">,</span> <span class="s2">&quot;python&quot;</span><span class="p">:</span> <span class="s2">&quot;3.12&quot;</span><span class="p">},</span>
-</span><span data-line="13">    <span class="p">{</span><span class="s2">&quot;branch&quot;</span><span class="p">:</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span> <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="s2">&quot;cheetah&quot;</span><span class="p">,</span> <span class="s2">&quot;python&quot;</span><span class="p">:</span> <span class="s2">&quot;3.13&quot;</span><span class="p">}</span>
+</span><span data-line="11">  <span class="s2">"graph_param_list"</span><span class="p">:</span> <span class="p">[</span>
+</span><span data-line="12">    <span class="p">{</span><span class="s2">"branch"</span><span class="p">:</span> <span class="s2">"main"</span><span class="p">,</span> <span class="s2">"machine"</span><span class="p">:</span> <span class="s2">"cheetah"</span><span class="p">,</span> <span class="s2">"python"</span><span class="p">:</span> <span class="s2">"3.12"</span><span class="p">},</span>
+</span><span data-line="13">    <span class="p">{</span><span class="s2">"branch"</span><span class="p">:</span> <span class="s2">"main"</span><span class="p">,</span> <span class="s2">"machine"</span><span class="p">:</span> <span class="s2">"cheetah"</span><span class="p">,</span> <span class="s2">"python"</span><span class="p">:</span> <span class="s2">"3.13"</span><span class="p">}</span>
 </span><span data-line="14">  <span class="p">],</span>
-</span><span data-line="15">  <span class="s2">&quot;machines&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="16">    <span class="s2">&quot;cheetah&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;arch&quot;</span><span class="p">:</span> <span class="s2">&quot;x86_64&quot;</span><span class="p">,</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span> <span class="s2">&quot;Ryzen 9&quot;</span><span class="p">,</span> <span class="s2">&quot;os&quot;</span><span class="p">:</span> <span class="s2">&quot;Linux&quot;</span><span class="p">,</span> <span class="s2">&quot;ram&quot;</span><span class="p">:</span> <span class="s2">&quot;64GB&quot;</span><span class="p">}</span>
+</span><span data-line="15">  <span class="s2">"machines"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="16">    <span class="s2">"cheetah"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"arch"</span><span class="p">:</span> <span class="s2">"x86_64"</span><span class="p">,</span> <span class="s2">"cpu"</span><span class="p">:</span> <span class="s2">"Ryzen 9"</span><span class="p">,</span> <span class="s2">"os"</span><span class="p">:</span> <span class="s2">"Linux"</span><span class="p">,</span> <span class="s2">"ram"</span><span class="p">:</span> <span class="s2">"64GB"</span><span class="p">}</span>
 </span><span data-line="17">  <span class="p">},</span>
-</span><span data-line="18">  <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="p">{},</span>
-</span><span data-line="19">  <span class="s2">&quot;benchmarks&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="20">    <span class="s2">&quot;time_sort&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="21">      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;time_sort&quot;</span><span class="p">,</span>
-</span><span data-line="22">      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
-</span><span data-line="23">      <span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="s2">&quot;seconds&quot;</span><span class="p">,</span>
-</span><span data-line="24">      <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="p">[],</span>
-</span><span data-line="25">      <span class="s2">&quot;param_names&quot;</span><span class="p">:</span> <span class="p">[],</span>
-</span><span data-line="26">      <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="s2">&quot;def time_sort():</span><span class="se">\n</span><span class="s2">    …</span><span class="se">\n</span><span class="s2">&quot;</span>
+</span><span data-line="18">  <span class="s2">"tags"</span><span class="p">:</span> <span class="p">{},</span>
+</span><span data-line="19">  <span class="s2">"benchmarks"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="20">    <span class="s2">"time_sort"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="21">      <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"time_sort"</span><span class="p">,</span>
+</span><span data-line="22">      <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"time"</span><span class="p">,</span>
+</span><span data-line="23">      <span class="s2">"unit"</span><span class="p">:</span> <span class="s2">"seconds"</span><span class="p">,</span>
+</span><span data-line="24">      <span class="s2">"params"</span><span class="p">:</span> <span class="p">[],</span>
+</span><span data-line="25">      <span class="s2">"param_names"</span><span class="p">:</span> <span class="p">[],</span>
+</span><span data-line="26">      <span class="s2">"code"</span><span class="p">:</span> <span class="s2">"def time_sort():</span><span class="se">\n</span><span class="s2">    …</span><span class="se">\n</span><span class="s2">"</span>
 </span><span data-line="27">    <span class="p">},</span>
-</span><span data-line="28">    <span class="s2">&quot;time_keys&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="29">      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;time_keys&quot;</span><span class="p">,</span>
-</span><span data-line="30">      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;time&quot;</span><span class="p">,</span>
-</span><span data-line="31">      <span class="s2">&quot;unit&quot;</span><span class="p">:</span> <span class="s2">&quot;seconds&quot;</span><span class="p">,</span>
-</span><span data-line="32">      <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;10&quot;</span><span class="p">,</span> <span class="s2">&quot;100&quot;</span><span class="p">,</span> <span class="s2">&quot;1000&quot;</span><span class="p">]],</span>
-</span><span data-line="33">      <span class="s2">&quot;param_names&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;n&quot;</span><span class="p">]</span>
+</span><span data-line="28">    <span class="s2">"time_keys"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="29">      <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"time_keys"</span><span class="p">,</span>
+</span><span data-line="30">      <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"time"</span><span class="p">,</span>
+</span><span data-line="31">      <span class="s2">"unit"</span><span class="p">:</span> <span class="s2">"seconds"</span><span class="p">,</span>
+</span><span data-line="32">      <span class="s2">"params"</span><span class="p">:</span> <span class="p">[[</span><span class="s2">"10"</span><span class="p">,</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"1000"</span><span class="p">]],</span>
+</span><span data-line="33">      <span class="s2">"param_names"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"n"</span><span class="p">]</span>
 </span><span data-line="34">    <span class="p">}</span>
 </span><span data-line="35">  <span class="p">}</span>
 </span><span data-line="36"><span class="p">}</span>
@@ -285,12 +285,12 @@ product; the last axis varies fastest.</p>
 <section id="regressions-json">
 <h2><code class="docutils literal notranslate"><span class="pre">regressions.json</span></code><a class="headerlink" href="#regressions-json" title="Link to this heading">#</a></h2>
 <p>Optional. Written by ASV’s regressions publisher. Top-level:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1">{ &quot;regressions&quot;: [ entry, … ] }
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1">{ "regressions": [ entry, … ] }
 </span></pre></div>
 </div>
 <p>Each <code class="docutils literal notranslate"><span class="pre">entry</span></code> is a 7-tuple:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span><span data-line="1">[
-</span><span data-line="2">  entry_name,       # str  — benchmark name, may include &quot;(param=…)&quot; suffix
+</span><span data-line="2">  entry_name,       # str  — benchmark name, may include "(param=…)" suffix
 </span><span data-line="3">  graph_path,       # str  — path to the graph JSON (may be relative)
 </span><span data-line="4">  graph_params,     # object — subset of env axes that vary (or all used)
 </span><span data-line="5">  param_idx,        # int|null — flat param index, or null if scalar
@@ -306,11 +306,11 @@ threshold on that factor and links each row into Explore with the env filters
 and param index applied.</p>
 <p>Example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="p">{</span>
-</span><span data-line="2">  <span class="s2">&quot;regressions&quot;</span><span class="p">:</span> <span class="p">[</span>
+</span><span data-line="2">  <span class="s2">"regressions"</span><span class="p">:</span> <span class="p">[</span>
 </span><span data-line="3">    <span class="p">[</span>
-</span><span data-line="4">      <span class="s2">&quot;time_sort&quot;</span><span class="p">,</span>
-</span><span data-line="5">      <span class="s2">&quot;graphs/branch-main/machine-cheetah/python-3.12/time_sort.json&quot;</span><span class="p">,</span>
-</span><span data-line="6">      <span class="p">{</span><span class="s2">&quot;branch&quot;</span><span class="p">:</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span> <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="s2">&quot;cheetah&quot;</span><span class="p">,</span> <span class="s2">&quot;python&quot;</span><span class="p">:</span> <span class="s2">&quot;3.12&quot;</span><span class="p">},</span>
+</span><span data-line="4">      <span class="s2">"time_sort"</span><span class="p">,</span>
+</span><span data-line="5">      <span class="s2">"graphs/branch-main/machine-cheetah/python-3.12/time_sort.json"</span><span class="p">,</span>
+</span><span data-line="6">      <span class="p">{</span><span class="s2">"branch"</span><span class="p">:</span> <span class="s2">"main"</span><span class="p">,</span> <span class="s2">"machine"</span><span class="p">:</span> <span class="s2">"cheetah"</span><span class="p">,</span> <span class="s2">"python"</span><span class="p">:</span> <span class="s2">"3.12"</span><span class="p">},</span>
 </span><span data-line="7">      <span class="n">null</span><span class="p">,</span>
 </span><span data-line="8">      <span class="mf">1.74e-05</span><span class="p">,</span>
 </span><span data-line="9">      <span class="mf">1.2e-05</span><span class="p">,</span>
@@ -341,10 +341,10 @@ selected benchmark (prefer <code class="docutils literal notranslate"><span clas
 </div>
 <p>Shape:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="p">{</span>
-</span><span data-line="2">  <span class="s2">&quot;paths&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span data-line="3">    <span class="s2">&quot;sample_hot_path@30&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/tachyon/sample_hot_path.html&quot;</span><span class="p">,</span>
-</span><span data-line="4">    <span class="s2">&quot;sample_hot_path&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/tachyon/sample_hot_path.html&quot;</span><span class="p">,</span>
-</span><span data-line="5">    <span class="s2">&quot;ray_alloc@30&quot;</span><span class="p">:</span> <span class="s2">&quot;profiles/memray/ray_alloc.html&quot;</span>
+</span><span data-line="2">  <span class="s2">"paths"</span><span class="p">:</span> <span class="p">{</span>
+</span><span data-line="3">    <span class="s2">"sample_hot_path@30"</span><span class="p">:</span> <span class="s2">"profiles/tachyon/sample_hot_path.html"</span><span class="p">,</span>
+</span><span data-line="4">    <span class="s2">"sample_hot_path"</span><span class="p">:</span> <span class="s2">"profiles/tachyon/sample_hot_path.html"</span><span class="p">,</span>
+</span><span data-line="5">    <span class="s2">"ray_alloc@30"</span><span class="p">:</span> <span class="s2">"profiles/memray/ray_alloc.html"</span>
 </span><span data-line="6">  <span class="p">}</span>
 </span><span data-line="7"><span class="p">}</span>
 </span></pre></div>
@@ -406,7 +406,7 @@ points.</p></li>
     </div>
   </div>
 </footer>
-      <script src="_static/documentation_options.js?v=cfd46aba"></script>
+      <script src="_static/documentation_options.js?v=8c131bd0"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/shibuya.js?v=50760d75"></script></body>
