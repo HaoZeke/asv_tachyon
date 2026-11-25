@@ -3,7 +3,7 @@
   "projectTitle": "asv_tachyon",
   "description": "Web UI for airspeed velocity benchmark results.",
   "folders": [
-    "docs/orgmode",
+    "docs",
     "adapters",
     "src"
   ],
