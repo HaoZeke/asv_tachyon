@@ -1,0 +1,23 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "asv_tachyon",
+  "description": "Web UI for airspeed velocity benchmark results.",
+  "excludeFolders": [
+    "changelog.d",
+    "docs/orgmode/index.org",
+    "src/asv_tachyon/static",
+    "web",
+    "fixtures",
+    "tests",
+    "scripts",
+    ".github",
+    "branding"
+  ],
+  "excludeFiles": [
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "LICENSE",
+    "readme_src.org"
+  ],
+  "rules": []
+}
